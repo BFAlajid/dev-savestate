@@ -1,6 +1,13 @@
 {
   "name": "dev-savestate",
   "private": true,
+  "description": "Emulator save states for development environments — save and restore your full working context in seconds",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BFAlajid/dev-savestate.git"
+  },
+  "author": "BFAlajid",
+  "license": "MIT",
   "workspaces": ["packages/*"],
   "scripts": {
     "build": "npm run --workspace=packages/cli build",

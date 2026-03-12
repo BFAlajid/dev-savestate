@@ -5,6 +5,13 @@
   "version": "0.1.0",
   "publisher": "bunji",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BFAlajid/dev-savestate.git",
+    "directory": "packages/vscode"
+  },
+  "author": "BFAlajid",
+  "icon": "icon.png",
   "engines": {
     "vscode": "^1.85.0"
   },

@@ -1,10 +1,33 @@
 {
   "name": "dev-savestate",
   "version": "0.1.0",
-  "description": "Emulator save states for development environments",
+  "description": "Emulator save states for development environments — save and restore your full working context in seconds",
   "type": "module",
   "bin": {
     "dvs": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "developer-tools",
+    "context-switching",
+    "git",
+    "save-state",
+    "productivity",
+    "workflow",
+    "cli",
+    "devtools"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BFAlajid/dev-savestate.git",
+    "directory": "packages/cli"
+  },
+  "author": "BFAlajid",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
   },
   "scripts": {
     "build": "tsup",
