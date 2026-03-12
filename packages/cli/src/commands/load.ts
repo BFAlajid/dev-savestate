@@ -6,6 +6,8 @@ import {
   createGit,
   isDirty,
   getBranch,
+  getCommitHash,
+  getDiff,
   checkoutBranch,
   applyPatch,
   stashChanges,
@@ -18,12 +20,15 @@ import {
 } from "../lib/storage.js";
 import { patchPath } from "../lib/paths.js";
 import { printMentalStack } from "../lib/display.js";
+import { restoreProcesses } from "../lib/process.js";
+import { saveCheckpoint } from "./back.js";
+import { writeHeartbeat } from "./recover.js";
 import type { SaveState } from "../lib/types.js";
 import writeFileAtomic from "write-file-atomic";
 import { stateJsonPath } from "../lib/paths.js";
 
 async function promptChoice(question: string, choices: string): Promise<string> {
-  if (!process.stdin.isTTY) return "a"; // abort in non-interactive mode
+  if (!process.stdin.isTTY) return "a";
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -44,7 +49,6 @@ export const loadCommand = new Command("load")
     let release: (() => Promise<void>) | null = null;
 
     try {
-      // Validate name
       const nameCheck = validateStateName(name);
       if (!nameCheck.valid) {
         console.error(`Error: ${nameCheck.reason}`);
@@ -57,9 +61,14 @@ export const loadCommand = new Command("load")
 
       release = await acquireLock(projectRoot);
 
-      // Read state
       const state = await readState(projectRoot, name);
       const git = createGit(projectRoot);
+
+      // Save pre-load checkpoint for dvs back
+      const currentBranch = await getBranch(git);
+      const currentHash = await getCommitHash(git);
+      const currentDiff = await getDiff(git);
+      await saveCheckpoint(projectRoot, currentBranch, currentHash, currentDiff || undefined);
 
       // Dirty tree check
       const dirty = await isDirty(git);
@@ -86,11 +95,9 @@ export const loadCommand = new Command("load")
             return;
           }
         }
-        // choice === "f" or "force" — continue
       }
 
       // Checkout branch
-      const currentBranch = await getBranch(git);
       if (currentBranch !== state.git.branch) {
         const result = await checkoutBranch(git, state.git.branch);
         if (!result.success) {
@@ -127,16 +134,23 @@ export const loadCommand = new Command("load")
         }
       }
 
+      // Restore processes
+      if (state.processes?.length) {
+        const { started, skipped } = await restoreProcesses(state.processes, projectRoot);
+        if (started.length) console.log(`\nProcesses started: ${started.join(", ")}`);
+        if (skipped.length) console.log(`Processes skipped: ${skipped.join(", ")}`);
+      }
+
+      // Write heartbeat
+      await writeHeartbeat(projectRoot, name);
+
       // Update metadata
       state.lastLoadedAt = new Date().toISOString();
       state.loadCount = (state.loadCount || 0) + 1;
       state.updatedAt = state.lastLoadedAt;
 
       const stateFile = stateJsonPath(projectRoot, name);
-      await writeFileAtomic(
-        stateFile,
-        JSON.stringify(state, null, 2) + "\n"
-      );
+      await writeFileAtomic(stateFile, JSON.stringify(state, null, 2) + "\n");
     } catch (err: any) {
       console.error(`Error: ${err.message}`);
       process.exitCode = 1;

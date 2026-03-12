@@ -59,6 +59,7 @@ function buildState(
     projectRoot,
     note: overrides.note || "test note",
     nextStep: overrides.nextStep,
+    tags: overrides.tags || [],
     git: overrides.git || {
       branch: "master",
       commitHash: "abc123",
@@ -66,6 +67,7 @@ function buildState(
       patchFile: "git-patch.diff",
       patchHash: computeHash(""),
     },
+    processes: overrides.processes || [],
     archived: false,
     loadCount: 0,
     ...overrides,

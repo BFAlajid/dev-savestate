@@ -164,6 +164,7 @@ export async function atomicSaveState(
       branch: state.git.branch,
       notePreview: state.note.slice(0, 100),
       archived: state.archived,
+      tags: state.tags,
     };
     upsertIndexEntry(index, entry);
     await writeIndex(projectRoot, index);
@@ -283,6 +284,7 @@ export async function recoverOrphans(projectRoot: string): Promise<string[]> {
           branch: state.git.branch,
           notePreview: state.note.slice(0, 100),
           archived: state.archived,
+          tags: state.tags,
         };
         upsertIndexEntry(index, indexEntry);
         recovered.push(entry);

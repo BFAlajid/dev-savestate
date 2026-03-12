@@ -61,6 +61,7 @@ function buildState(
     projectRoot,
     note: overrides.note ?? "test note",
     nextStep: overrides.nextStep,
+    tags: overrides.tags || [],
     git: overrides.git || {
       branch: "master",
       commitHash: "abc123",
@@ -68,6 +69,7 @@ function buildState(
       patchFile: "git-patch.diff",
       patchHash: computeHash(""),
     },
+    processes: overrides.processes || [],
     archived: false,
     loadCount: 0,
     ...overrides,
@@ -682,6 +684,7 @@ describe("Display", () => {
       projectRoot: "/fake/path",
       note: "Working on auth token refresh",
       nextStep: "Add retry logic for expired tokens",
+      tags: [],
       git: {
         branch: "feature/auth",
         commitHash: "abc123def456",
@@ -689,6 +692,7 @@ describe("Display", () => {
         patchFile: "git-patch.diff",
         patchHash: "fakehash",
       },
+      processes: [],
       archived: false,
       loadCount: 0,
     };

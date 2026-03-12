@@ -7,6 +7,7 @@ export interface SaveState {
 
   note: string;
   nextStep?: string;
+  tags: string[];
 
   git: {
     branch: string;
@@ -26,6 +27,15 @@ export interface SaveState {
     activeFile?: string;
   };
 
+  processes: Array<{
+    name: string;
+    command: string;
+    args: string[];
+    cwd: string;
+    port?: number;
+    source: "dvs-run" | "config";
+  }>;
+
   archived: boolean;
   lastLoadedAt?: string;
   loadCount: number;
@@ -43,4 +53,17 @@ export interface IndexEntry {
   branch: string;
   notePreview: string;
   archived: boolean;
+  tags?: string[];
+}
+
+export interface ProjectConfig {
+  processes?: {
+    commands?: Array<{
+      name: string;
+      command: string;
+      cwd?: string;
+      port?: number;
+    }>;
+  };
+  promptNextStep?: boolean;
 }

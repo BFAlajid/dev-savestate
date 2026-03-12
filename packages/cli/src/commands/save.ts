@@ -17,6 +17,7 @@ import {
   stateExists,
   validateStateName,
 } from "../lib/storage.js";
+import { getProcessesForSave, readProjectConfig, getConfigProcesses } from "../lib/process.js";
 import type { SaveState } from "../lib/types.js";
 
 async function promptLine(question: string): Promise<string> {
@@ -37,7 +38,8 @@ export const saveCommand = new Command("save")
   .description("Save current development context")
   .argument("[name]", "Name for the save state")
   .argument("[note]", "Context note describing what you were doing")
-  .action(async (nameArg?: string, noteArg?: string) => {
+  .option("-t, --tag <tags...>", "Add tags to the save state")
+  .action(async (nameArg?: string, noteArg?: string, opts?: { tag?: string[] }) => {
     let release: (() => Promise<void>) | null = null;
 
     try {
@@ -47,12 +49,10 @@ export const saveCommand = new Command("save")
       release = await acquireLock(projectRoot);
       await cleanStaleTmpDirs(projectRoot);
 
-      // Resolve name
       const name =
         nameArg ||
         `save-${new Date().toISOString().slice(0, 16).replace(":", "")}`;
 
-      // Validate name
       const nameCheck = validateStateName(name);
       if (!nameCheck.valid) {
         console.error(`Error: ${nameCheck.reason}`);
@@ -60,12 +60,10 @@ export const saveCommand = new Command("save")
         return;
       }
 
-      // Check if overwriting
       if (nameArg && (await stateExists(projectRoot, name))) {
         console.log(`Updating existing state '${name}'`);
       }
 
-      // Capture git state
       const git = createGit(projectRoot);
       const [branch, commitHash, dirty] = await Promise.all([
         getBranch(git),
@@ -77,25 +75,25 @@ export const saveCommand = new Command("save")
       if (dirty) {
         patchContent = await getDiff(git);
       }
-
       const patchHash = computeHash(patchContent);
 
-      // Resolve note
       let note = noteArg || "";
       if (!note) {
         note = await promptLine("Note (what are you working on?): ");
       }
 
-      // Resolve next step
       let nextStep: string | undefined;
       if (process.stdin.isTTY) {
-        const ns = await promptLine(
-          "Next step when you return? (optional, press Enter to skip): "
-        );
+        const ns = await promptLine("Next step when you return? (optional, press Enter to skip): ");
         if (ns) nextStep = ns;
       }
 
-      // Build state
+      // Collect processes
+      const dvsRunProcs = getProcessesForSave();
+      const config = await readProjectConfig(projectRoot);
+      const configProcs = getConfigProcesses(config, projectRoot);
+      const processes = [...dvsRunProcs, ...configProcs];
+
       const now = new Date().toISOString();
       const state: SaveState = {
         version: 1,
@@ -105,6 +103,7 @@ export const saveCommand = new Command("save")
         projectRoot,
         note,
         nextStep,
+        tags: opts?.tag || [],
         git: {
           branch,
           commitHash,
@@ -112,24 +111,24 @@ export const saveCommand = new Command("save")
           patchFile: "git-patch.diff",
           patchHash,
         },
+        processes,
         archived: false,
         loadCount: 0,
       };
 
-      // Atomic save
       await atomicSaveState(projectRoot, name, state, patchContent);
 
-      // Summary
       console.log("");
       console.log(`Saved: ${name}`);
       console.log(`  Branch:  ${branch}`);
       console.log(`  Commit:  ${commitHash.slice(0, 8)}`);
       if (dirty) {
-        const lines = patchContent.split("\n").length;
-        console.log(`  Changes: ${lines} lines of diff`);
+        console.log(`  Changes: ${patchContent.split("\n").length} lines of diff`);
       } else {
         console.log(`  Changes: clean working tree`);
       }
+      if (state.tags.length) console.log(`  Tags:    ${state.tags.join(", ")}`);
+      if (processes.length) console.log(`  Procs:   ${processes.map((p) => p.name).join(", ")}`);
       if (note) console.log(`  Note:    ${note.slice(0, 60)}`);
       if (nextStep) console.log(`  Next:    ${nextStep.slice(0, 60)}`);
     } catch (err: any) {
