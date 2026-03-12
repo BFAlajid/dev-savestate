@@ -1,0 +1,10 @@
+{
+  "name": "dev-savestate",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "build": "npm run --workspace=packages/cli build",
+    "test": "npm run --workspace=packages/cli test",
+    "dev": "npm run --workspace=packages/cli dev"
+  }
+}
