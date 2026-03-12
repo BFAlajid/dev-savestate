@@ -1,0 +1,88 @@
+{
+  "name": "dev-savestate-vscode",
+  "displayName": "Dev Savestate",
+  "description": "Emulator save states for development environments",
+  "version": "0.1.0",
+  "publisher": "bunji",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "workspaceContains:.savestate",
+    "onView:dvs.savestateView"
+  ],
+  "contributes": {
+    "commands": [
+      { "command": "dvs.save", "title": "Dev Savestate: Save", "icon": "$(save)" },
+      { "command": "dvs.quickSave", "title": "Dev Savestate: Quick Save", "icon": "$(save-all)" },
+      { "command": "dvs.load", "title": "Dev Savestate: Load", "icon": "$(folder-opened)" },
+      { "command": "dvs.delete", "title": "Dev Savestate: Delete", "icon": "$(trash)" },
+      { "command": "dvs.inspect", "title": "Dev Savestate: Inspect", "icon": "$(info)" },
+      { "command": "dvs.back", "title": "Dev Savestate: Undo Last Load", "icon": "$(discard)" },
+      { "command": "dvs.archive", "title": "Dev Savestate: Archive" },
+      { "command": "dvs.unarchive", "title": "Dev Savestate: Unarchive" },
+      { "command": "dvs.refresh", "title": "Dev Savestate: Refresh", "icon": "$(refresh)" }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "dvs.savestateView",
+          "name": "Save States",
+          "contextualTitle": "Dev Savestate"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        { "command": "dvs.save", "when": "view == dvs.savestateView", "group": "navigation" },
+        { "command": "dvs.refresh", "when": "view == dvs.savestateView", "group": "navigation" }
+      ],
+      "view/item/context": [
+        { "command": "dvs.load", "when": "viewItem == savestate", "group": "1_actions@1" },
+        { "command": "dvs.inspect", "when": "viewItem == savestate || viewItem == savestate-archived", "group": "1_actions@2" },
+        { "command": "dvs.archive", "when": "viewItem == savestate", "group": "2_manage@1" },
+        { "command": "dvs.unarchive", "when": "viewItem == savestate-archived", "group": "2_manage@1" },
+        { "command": "dvs.delete", "when": "viewItem == savestate || viewItem == savestate-archived", "group": "3_danger@1" }
+      ]
+    },
+    "keybindings": [
+      { "command": "dvs.save", "key": "ctrl+shift+s s", "mac": "cmd+shift+s s" },
+      { "command": "dvs.quickSave", "key": "ctrl+shift+s q", "mac": "cmd+shift+s q" },
+      { "command": "dvs.load", "key": "ctrl+shift+s l", "mac": "cmd+shift+s l" }
+    ],
+    "configuration": {
+      "title": "Dev Savestate",
+      "properties": {
+        "devSavestate.cliPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the dvs CLI binary. Leave empty for auto-detection."
+        },
+        "devSavestate.confirmEditorClose": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ask for confirmation before closing all editors on load."
+        },
+        "devSavestate.showArchivedStates": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show archived states in the sidebar tree."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.4.0"
+  }
+}

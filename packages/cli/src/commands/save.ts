@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import readline from "node:readline/promises";
+import fs from "node:fs/promises";
 import {
   findProjectRoot,
   createGit,
@@ -39,7 +40,9 @@ export const saveCommand = new Command("save")
   .argument("[name]", "Name for the save state")
   .argument("[note]", "Context note describing what you were doing")
   .option("-t, --tag <tags...>", "Add tags to the save state")
-  .action(async (nameArg?: string, noteArg?: string, opts?: { tag?: string[] }) => {
+  .option("--editor-state <file>", "Path to JSON file with editor state (used by VS Code extension)")
+  .option("--json", "Output as JSON")
+  .action(async (nameArg?: string, noteArg?: string, opts?: { tag?: string[]; editorState?: string; json?: boolean }) => {
     let release: (() => Promise<void>) | null = null;
 
     try {
@@ -94,6 +97,19 @@ export const saveCommand = new Command("save")
       const configProcs = getConfigProcesses(config, projectRoot);
       const processes = [...dvsRunProcs, ...configProcs];
 
+      // Read editor state from file if provided (VS Code extension path)
+      let editor: SaveState["editor"] | undefined;
+      if (opts?.editorState) {
+        try {
+          const raw = await fs.readFile(opts.editorState, "utf-8");
+          editor = JSON.parse(raw);
+          // Clean up temp file
+          await fs.unlink(opts.editorState).catch(() => {});
+        } catch {
+          // Ignore invalid editor state — save proceeds without it
+        }
+      }
+
       const now = new Date().toISOString();
       const state: SaveState = {
         version: 1,
@@ -111,6 +127,7 @@ export const saveCommand = new Command("save")
           patchFile: "git-patch.diff",
           patchHash,
         },
+        editor,
         processes,
         archived: false,
         loadCount: 0,
@@ -118,21 +135,29 @@ export const saveCommand = new Command("save")
 
       await atomicSaveState(projectRoot, name, state, patchContent);
 
-      console.log("");
-      console.log(`Saved: ${name}`);
-      console.log(`  Branch:  ${branch}`);
-      console.log(`  Commit:  ${commitHash.slice(0, 8)}`);
-      if (dirty) {
-        console.log(`  Changes: ${patchContent.split("\n").length} lines of diff`);
+      if (opts?.json) {
+        console.log(JSON.stringify({ success: true, name, branch, commitHash, dirty, note }));
       } else {
-        console.log(`  Changes: clean working tree`);
+        console.log("");
+        console.log(`Saved: ${name}`);
+        console.log(`  Branch:  ${branch}`);
+        console.log(`  Commit:  ${commitHash.slice(0, 8)}`);
+        if (dirty) {
+          console.log(`  Changes: ${patchContent.split("\n").length} lines of diff`);
+        } else {
+          console.log(`  Changes: clean working tree`);
+        }
+        if (state.tags.length) console.log(`  Tags:    ${state.tags.join(", ")}`);
+        if (processes.length) console.log(`  Procs:   ${processes.map((p) => p.name).join(", ")}`);
+        if (note) console.log(`  Note:    ${note.slice(0, 60)}`);
+        if (nextStep) console.log(`  Next:    ${nextStep.slice(0, 60)}`);
       }
-      if (state.tags.length) console.log(`  Tags:    ${state.tags.join(", ")}`);
-      if (processes.length) console.log(`  Procs:   ${processes.map((p) => p.name).join(", ")}`);
-      if (note) console.log(`  Note:    ${note.slice(0, 60)}`);
-      if (nextStep) console.log(`  Next:    ${nextStep.slice(0, 60)}`);
     } catch (err: any) {
-      console.error(`Error: ${err.message}`);
+      if (opts?.json) {
+        console.log(JSON.stringify({ success: false, error: err.message }));
+      } else {
+        console.error(`Error: ${err.message}`);
+      }
       process.exitCode = 1;
     } finally {
       if (release) await release();
