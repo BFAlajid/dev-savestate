@@ -1,6 +1,8 @@
 import { Command } from "commander";
 import readline from "node:readline/promises";
 import fs from "node:fs/promises";
+import path from "node:path";
+import os from "node:os";
 import {
   findProjectRoot,
   createGit,
@@ -17,9 +19,34 @@ import {
   computeHash,
   stateExists,
   validateStateName,
+  resolveStateDir,
 } from "../lib/storage.js";
+import { tmpDir as savestateTmpDir } from "../lib/paths.js";
 import { getProcessesForSave, readProjectConfig, getConfigProcesses } from "../lib/process.js";
 import type { SaveState } from "../lib/types.js";
+
+/**
+ * --editor-state is written by the VS Code extension to a temp file that the
+ * CLI then reads. The path must be under the OS tmp dir or .savestate/_tmp —
+ * any other location means the caller is trying to coerce us into reading and
+ * then unlinking arbitrary files.
+ */
+function assertSafeEditorStatePath(candidate: string, projectRoot: string): void {
+  if (typeof candidate !== "string" || candidate.length === 0) {
+    throw new Error("Invalid --editor-state path: empty");
+  }
+  if (candidate.includes("\x00")) {
+    throw new Error("Invalid --editor-state path: contains null byte");
+  }
+  const resolved = path.resolve(candidate);
+  const tmp = path.resolve(os.tmpdir()) + path.sep;
+  const localTmp = path.resolve(savestateTmpDir(projectRoot)) + path.sep;
+  if (!resolved.startsWith(tmp) && !resolved.startsWith(localTmp)) {
+    throw new Error(
+      "Invalid --editor-state path: must be under tmpdir or .savestate/_tmp"
+    );
+  }
+}
 
 async function promptLine(question: string): Promise<string> {
   if (!process.stdin.isTTY) return "";
@@ -62,6 +89,8 @@ export const saveCommand = new Command("save")
         process.exitCode = 1;
         return;
       }
+      // Traversal guard in addition to the character validator.
+      resolveStateDir(projectRoot, name);
 
       if (nameArg && (await stateExists(projectRoot, name))) {
         console.log(`Updating existing state '${name}'`);
@@ -100,10 +129,13 @@ export const saveCommand = new Command("save")
       // Read editor state from file if provided (VS Code extension path)
       let editor: SaveState["editor"] | undefined;
       if (opts?.editorState) {
+        // Enforce the path constraint BEFORE any read or unlink — this
+        // prevents tricking the CLI into reading/unlinking arbitrary files.
+        assertSafeEditorStatePath(opts.editorState, projectRoot);
         try {
           const raw = await fs.readFile(opts.editorState, "utf-8");
           editor = JSON.parse(raw);
-          // Clean up temp file
+          // Clean up temp file (only reached after path check passed)
           await fs.unlink(opts.editorState).catch(() => {});
         } catch {
           // Ignore invalid editor state — save proceeds without it

@@ -7,6 +7,7 @@ import {
   stateExists,
   deleteState,
   validateStateName,
+  resolveStateDir,
 } from "../lib/storage.js";
 
 async function confirm(question: string): Promise<boolean> {
@@ -41,6 +42,7 @@ export const deleteCommand = new Command("delete")
 
       const projectRoot = await findProjectRoot(process.cwd());
       await ensureSavestateDir(projectRoot);
+      resolveStateDir(projectRoot, name); // validate + traversal guard
 
       if (!(await stateExists(projectRoot, name))) {
         console.error(`State '${name}' not found.`);

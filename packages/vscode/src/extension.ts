@@ -7,7 +7,7 @@ import {
   disposeStatusBar,
 } from "./ui/status-bar";
 import { disposeChannel } from "./ui/output-channel";
-import { getIndexPath, getActivePath } from "./services/storage-reader";
+import { setCliSecurityOutputChannel } from "./services/cli";
 import { executeSave } from "./commands/save";
 import { executeLoad } from "./commands/load";
 import { executeDelete } from "./commands/delete";
@@ -20,6 +20,11 @@ export function activate(context: vscode.ExtensionContext): void {
   if (!workspaceFolder) return;
 
   const projectRoot = workspaceFolder.uri.fsPath;
+
+  // Output channel for security + diagnostic messages. Wire it into the
+  // CLI service so workspace-scoped cliPath rejections are visible.
+  const securityChannel = vscode.window.createOutputChannel("Dev Savestate");
+  setCliSecurityOutputChannel(securityChannel);
 
   // Tree view
   const treeProvider = new SaveStateTreeProvider(projectRoot);
@@ -120,7 +125,8 @@ export function activate(context: vscode.ExtensionContext): void {
     treeView,
     statusBar,
     indexWatcher,
-    activeWatcher
+    activeWatcher,
+    securityChannel
   );
 }
 

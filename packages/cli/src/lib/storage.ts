@@ -15,6 +15,12 @@ export function validateStateName(name: string): { valid: boolean; reason: strin
   if (!name || name.trim().length === 0) {
     return { valid: false, reason: "State name cannot be empty." };
   }
+  if (typeof name !== "string") {
+    return { valid: false, reason: "State name must be a string." };
+  }
+  if (name.includes("\x00")) {
+    return { valid: false, reason: "State name cannot contain null bytes." };
+  }
   if (RESERVED_NAMES.has(name)) {
     return { valid: false, reason: `'${name}' is a reserved name.` };
   }
@@ -31,6 +37,27 @@ export function validateStateName(name: string): { valid: boolean; reason: strin
     return { valid: false, reason: `State name cannot start with '${name[0]}'.` };
   }
   return { valid: true, reason: "" };
+}
+
+/**
+ * Resolve the on-disk directory for a state, enforcing that the resulting
+ * path stays inside statesDir(projectRoot). Use this at every command entry
+ * point that accepts a user-provided state name, before any filesystem
+ * access, to prevent traversal via names like "../../etc/passwd".
+ */
+export function resolveStateDir(projectRoot: string, name: string): string {
+  const check = validateStateName(name);
+  if (!check.valid) {
+    throw new Error(`Invalid state name: ${check.reason}`);
+  }
+  const base = path.resolve(paths.statesDir(projectRoot));
+  const resolved = path.resolve(paths.stateDir(projectRoot, name));
+  if (resolved !== base && !resolved.startsWith(base + path.sep)) {
+    throw new Error(
+      `Invalid state name '${name}': resolved path escapes states directory`
+    );
+  }
+  return resolved;
 }
 
 // --- Init ---
@@ -195,6 +222,16 @@ export async function deleteState(
 
 // --- Locking ---
 
+/**
+ * Path to a companion PID marker written alongside the proper-lockfile lock.
+ * proper-lockfile itself does not persist a PID; we write our own so that
+ * `dvs unlock` can check whether the lock holder is still alive before
+ * blowing it away.
+ */
+export function lockPidPath(projectRoot: string): string {
+  return paths.lockPath(projectRoot) + ".pid";
+}
+
 export async function acquireLock(
   projectRoot: string
 ): Promise<() => Promise<void>> {
@@ -213,7 +250,21 @@ export async function acquireLock(
       },
       lockfilePath: paths.lockPath(projectRoot),
     });
-    return release;
+    // Write PID marker. Best-effort; if this fails we still hold the lock.
+    try {
+      await writeFileAtomic(lockPidPath(projectRoot), String(process.pid));
+    } catch {
+      // Ignore — the lock itself is the authoritative state.
+    }
+    // Wrap release to clean up the marker.
+    return async () => {
+      try {
+        await fs.unlink(lockPidPath(projectRoot));
+      } catch {
+        // Already gone
+      }
+      await release();
+    };
   } catch (err: any) {
     if (err.code === "ELOCKED") {
       throw new Error(

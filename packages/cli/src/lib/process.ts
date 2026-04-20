@@ -13,6 +13,84 @@ interface ManagedProcess {
   child?: ChildProcess;
 }
 
+// --- Security: process entry validator ---
+
+export interface ProcessEntry {
+  name: string;
+  command: string;
+  args: string[];
+  cwd: string;
+  port?: number;
+  source?: "dvs-run" | "config";
+}
+
+// Shell metacharacters that could enable command injection if we ever fell
+// back to a shell. We reject them even though shell: false is the default,
+// because the command string is still handled by OS loaders and because
+// defense in depth matters if someone later flips shell back on.
+const SHELL_METACHAR_RE = /[;&|$`\n\r<>]/;
+
+export function assertSafeProcessEntry(
+  entry: ProcessEntry,
+  projectRoot: string
+): void {
+  if (!entry || typeof entry !== "object") {
+    throw new Error("Invalid process entry: not an object");
+  }
+  if (typeof entry.command !== "string" || entry.command.length === 0) {
+    throw new Error(
+      `Invalid process entry '${entry.name}': command must be a non-empty string`
+    );
+  }
+  if (SHELL_METACHAR_RE.test(entry.command)) {
+    throw new Error(
+      `Invalid process entry '${entry.name}': command contains shell metacharacters`
+    );
+  }
+  if (entry.command.includes("\x00")) {
+    throw new Error(
+      `Invalid process entry '${entry.name}': command contains null byte`
+    );
+  }
+  if (!Array.isArray(entry.args)) {
+    throw new Error(
+      `Invalid process entry '${entry.name}': args must be an array`
+    );
+  }
+  for (const arg of entry.args) {
+    if (typeof arg !== "string") {
+      throw new Error(
+        `Invalid process entry '${entry.name}': every arg must be a string`
+      );
+    }
+    if (arg.includes("\x00")) {
+      throw new Error(
+        `Invalid process entry '${entry.name}': arg contains null byte`
+      );
+    }
+  }
+  if (typeof entry.cwd !== "string" || entry.cwd.length === 0) {
+    throw new Error(
+      `Invalid process entry '${entry.name}': cwd must be a non-empty string`
+    );
+  }
+  if (entry.cwd.includes("\x00")) {
+    throw new Error(
+      `Invalid process entry '${entry.name}': cwd contains null byte`
+    );
+  }
+  const resolvedRoot = path.resolve(projectRoot);
+  const resolvedCwd = path.resolve(entry.cwd);
+  if (
+    resolvedCwd !== resolvedRoot &&
+    !resolvedCwd.startsWith(resolvedRoot + path.sep)
+  ) {
+    throw new Error(
+      `Invalid process entry '${entry.name}': cwd '${resolvedCwd}' is outside project root`
+    );
+  }
+}
+
 const managed: Map<string, ManagedProcess> = new Map();
 
 export function runProcess(
@@ -22,10 +100,12 @@ export function runProcess(
   cwd: string,
   port?: number
 ): ManagedProcess {
+  // shell: false — command must be a real executable, args are a real argv array.
+  // Combined with assertSafeProcessEntry, this defeats shell injection.
   const child = spawn(command, args, {
     cwd,
     stdio: "inherit",
-    shell: true,
+    shell: false,
     detached: false,
   });
 
@@ -91,14 +171,29 @@ export function getConfigProcesses(
   source: "dvs-run" | "config";
 }> {
   if (!config?.processes?.commands) return [];
-  return config.processes.commands.map((cmd) => ({
-    name: cmd.name,
-    command: cmd.command,
-    args: [],
-    cwd: cmd.cwd ? path.resolve(projectRoot, cmd.cwd) : projectRoot,
-    port: cmd.port,
-    source: "config" as const,
-  }));
+  const out: Array<{
+    name: string;
+    command: string;
+    args: string[];
+    cwd: string;
+    port?: number;
+    source: "dvs-run" | "config";
+  }> = [];
+  for (const cmd of config.processes.commands) {
+    const entry = {
+      name: cmd.name,
+      command: cmd.command,
+      args: [],
+      cwd: cmd.cwd ? path.resolve(projectRoot, cmd.cwd) : projectRoot,
+      port: cmd.port,
+      source: "config" as const,
+    };
+    // Validate — rejects untrusted .savestaterc.json content before it ever
+    // gets saved into a state and later replayed by restoreProcesses.
+    assertSafeProcessEntry(entry, projectRoot);
+    out.push(entry);
+  }
+  return out;
 }
 
 export async function restoreProcesses(
@@ -125,10 +220,14 @@ export async function restoreProcesses(
     }
     const cwd = path.isAbsolute(proc.cwd) ? proc.cwd : path.resolve(projectRoot, proc.cwd);
     try {
+      // Validate every entry immediately before spawn. A state file on disk
+      // is effectively untrusted (could be hand-edited, imported from a
+      // shared package, or recovered from an orphan).
+      assertSafeProcessEntry({ ...proc, cwd }, projectRoot);
       runProcess(proc.name, proc.command, proc.args, cwd, proc.port);
       started.push(proc.name);
-    } catch {
-      skipped.push(`${proc.name} (failed to start)`);
+    } catch (err: any) {
+      skipped.push(`${proc.name} (${err?.message || "failed to start"})`);
     }
   }
   return { started, skipped };

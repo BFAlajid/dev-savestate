@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { findProjectRoot } from "../lib/git.js";
-import { ensureSavestateDir, readState } from "../lib/storage.js";
+import { ensureSavestateDir, readState, resolveStateDir } from "../lib/storage.js";
 
 export const diffCommand = new Command("diff")
   .description("Compare two save states")
@@ -11,6 +11,8 @@ export const diffCommand = new Command("diff")
     try {
       const projectRoot = await findProjectRoot(process.cwd());
       await ensureSavestateDir(projectRoot);
+      resolveStateDir(projectRoot, state1Name); // validate + traversal guard
+      resolveStateDir(projectRoot, state2Name); // validate + traversal guard
       const s1 = await readState(projectRoot, state1Name);
       const s2 = await readState(projectRoot, state2Name);
 

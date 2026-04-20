@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { findProjectRoot } from "../lib/git.js";
-import { ensureSavestateDir, readState } from "../lib/storage.js";
+import { ensureSavestateDir, readState, resolveStateDir } from "../lib/storage.js";
 import { printMentalStack } from "../lib/display.js";
 
 export const inspectCommand = new Command("inspect")
@@ -11,6 +11,7 @@ export const inspectCommand = new Command("inspect")
     try {
       const projectRoot = await findProjectRoot(process.cwd());
       await ensureSavestateDir(projectRoot);
+      resolveStateDir(projectRoot, name); // validate + traversal guard
       const state = await readState(projectRoot, name);
 
       if (opts.json) {

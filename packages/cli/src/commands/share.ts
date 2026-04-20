@@ -2,8 +2,7 @@ import { Command } from "commander";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { findProjectRoot } from "../lib/git.js";
-import { ensureSavestateDir, readState, acquireLock, atomicSaveState, stateExists, validateStateName } from "../lib/storage.js";
-import { stateDir } from "../lib/paths.js";
+import { ensureSavestateDir, readState, acquireLock, atomicSaveState, stateExists, validateStateName, resolveStateDir } from "../lib/storage.js";
 
 interface SharePackage {
   manifest: { version: 1; name: string; createdAt: string; exportedAt: string; files: string[] };
@@ -20,8 +19,8 @@ export const shareCommand = new Command("share")
     try {
       const projectRoot = await findProjectRoot(process.cwd());
       await ensureSavestateDir(projectRoot);
+      const dir = resolveStateDir(projectRoot, name); // validate + traversal guard
       const state = await readState(projectRoot, name);
-      const dir = stateDir(projectRoot, name);
 
       let noteMd = "";
       let patchDiff = "";

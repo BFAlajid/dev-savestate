@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { findProjectRoot } from "../lib/git.js";
-import { ensureSavestateDir, acquireLock, readState, readIndex, writeIndex, stateExists } from "../lib/storage.js";
+import { ensureSavestateDir, acquireLock, readState, readIndex, writeIndex, stateExists, resolveStateDir } from "../lib/storage.js";
 import { stateJsonPath } from "../lib/paths.js";
 import writeFileAtomic from "write-file-atomic";
 
@@ -9,6 +9,7 @@ async function setArchived(name: string, archived: boolean): Promise<void> {
   try {
     const projectRoot = await findProjectRoot(process.cwd());
     await ensureSavestateDir(projectRoot);
+    resolveStateDir(projectRoot, name); // validate + traversal guard
 
     if (!(await stateExists(projectRoot, name))) {
       console.error(`State '${name}' not found.`);
