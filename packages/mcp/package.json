@@ -1,0 +1,52 @@
+{
+  "name": "dev-savestate-mcp",
+  "version": "0.1.0",
+  "description": "Model Context Protocol server that wraps the dev-savestate (dvs) CLI — lets Claude Desktop, Claude Code, Cursor, and other MCP clients save and restore full developer context",
+  "type": "module",
+  "bin": {
+    "dvs-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "claude-desktop",
+    "cursor",
+    "dev-savestate",
+    "dvs",
+    "developer-tools",
+    "context-switching"
+  ],
+  "homepage": "https://github.com/BFAlajid/dev-savestate#readme",
+  "bugs": {
+    "url": "https://github.com/BFAlajid/dev-savestate/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BFAlajid/dev-savestate.git",
+    "directory": "packages/mcp"
+  },
+  "author": "BFAlajid",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "cross-spawn": "^7.0.6"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "tsup": "^8.3.0",
+    "@types/node": "^22.0.0",
+    "@types/cross-spawn": "^6.0.6"
+  }
+}
