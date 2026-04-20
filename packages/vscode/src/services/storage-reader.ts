@@ -35,9 +35,9 @@ export async function readActiveState(
   try {
     const raw = await fs.readFile(activePath, "utf-8");
     const active: ActiveState = JSON.parse(raw);
-    // Check staleness: if loaded more than 24h ago with no heartbeat update, ignore
-    const loadedAt = new Date(active.loadedAt).getTime();
-    if (Date.now() - loadedAt > 24 * 60 * 60 * 1000) return null;
+    // Check staleness: if last heartbeat is more than 24h old, ignore
+    const lastHeartbeat = new Date(active.lastHeartbeat).getTime();
+    if (Date.now() - lastHeartbeat > 24 * 60 * 60 * 1000) return null;
     return active;
   } catch {
     return null;

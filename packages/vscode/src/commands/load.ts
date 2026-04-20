@@ -27,7 +27,7 @@ export async function executeLoad(
   }
 
   try {
-    const result = await runCli(workspaceRoot, [
+    await runCli(workspaceRoot, [
       "load",
       stateName,
       "--force",

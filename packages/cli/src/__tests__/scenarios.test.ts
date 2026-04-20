@@ -23,7 +23,7 @@ import {
   applyPatch,
   stashChanges,
 } from "../lib/git.js";
-import { patchPath, stateDir } from "../lib/paths.js";
+import { patchPath } from "../lib/paths.js";
 import { printMentalStack, printStateList } from "../lib/display.js";
 import type { SaveState } from "../lib/types.js";
 

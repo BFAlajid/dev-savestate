@@ -6,26 +6,21 @@ import simpleGit from "simple-git";
 import {
   ensureSavestateDir,
   atomicSaveState,
-  readState,
   readIndex,
   deleteState,
-  acquireLock,
   computeHash,
   recoverOrphans,
   stateExists,
 } from "../lib/storage.js";
 import {
-  findProjectRoot,
   createGit,
   getBranch,
   getCommitHash,
-  isDirty,
   getDiff,
   checkoutBranch,
   applyPatch,
-  stashChanges,
 } from "../lib/git.js";
-import { patchPath, stateDir, stateJsonPath } from "../lib/paths.js";
+import { patchPath, stateDir } from "../lib/paths.js";
 import type { SaveState } from "../lib/types.js";
 
 let testDir: string;

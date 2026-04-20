@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { findProjectRoot } from "../lib/git.js";
-import { ensureSavestateDir, readIndex, recoverOrphans, readState } from "../lib/storage.js";
+import { ensureSavestateDir, readIndex, recoverOrphans } from "../lib/storage.js";
 import { printStateList } from "../lib/display.js";
 
 export const listCommand = new Command("list")

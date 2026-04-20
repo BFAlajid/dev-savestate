@@ -23,7 +23,6 @@ import { printMentalStack } from "../lib/display.js";
 import { restoreProcesses } from "../lib/process.js";
 import { saveCheckpoint } from "./back.js";
 import { writeHeartbeat } from "./recover.js";
-import type { SaveState } from "../lib/types.js";
 import writeFileAtomic from "write-file-atomic";
 import { stateJsonPath } from "../lib/paths.js";
 

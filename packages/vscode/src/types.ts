@@ -63,8 +63,8 @@ export interface IndexEntry {
 
 export interface ActiveState {
   stateName: string;
-  loadedAt: string;
-  pid?: number;
+  lastHeartbeat: string;
+  pid: number;
 }
 
 export interface CliResult {

@@ -23,7 +23,7 @@ export async function updateStatusBar(
   const active = await readActiveState(projectRoot);
 
   if (active) {
-    const elapsed = formatElapsed(active.loadedAt);
+    const elapsed = formatElapsed(active.lastHeartbeat);
     statusBarItem.text = `$(bookmark) ${active.stateName}  ${elapsed}`;
     statusBarItem.show();
   } else {

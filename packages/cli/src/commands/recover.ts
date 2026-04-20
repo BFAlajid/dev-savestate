@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import fs from "node:fs/promises";
 import path from "node:path";
+import writeFileAtomic from "write-file-atomic";
 import { findProjectRoot } from "../lib/git.js";
 import { ensureSavestateDir, readState } from "../lib/storage.js";
 import { formatRelativeTime } from "../lib/display.js";
@@ -9,7 +10,6 @@ interface ActiveHeartbeat {
   stateName: string;
   lastHeartbeat: string;
   pid: number;
-  cleanExit: boolean;
 }
 
 export function activeHeartbeatPath(projectRoot: string): string {
@@ -21,9 +21,8 @@ export async function writeHeartbeat(projectRoot: string, stateName: string): Pr
     stateName,
     lastHeartbeat: new Date().toISOString(),
     pid: process.pid,
-    cleanExit: false,
   };
-  await fs.writeFile(activeHeartbeatPath(projectRoot), JSON.stringify(heartbeat, null, 2) + "\n");
+  await writeFileAtomic(activeHeartbeatPath(projectRoot), JSON.stringify(heartbeat, null, 2) + "\n");
 }
 
 export async function clearHeartbeat(projectRoot: string): Promise<void> {
@@ -54,12 +53,6 @@ export const recoverCommand = new Command("recover")
       if (opts.clear) {
         await clearHeartbeat(projectRoot);
         console.log("Heartbeat cleared.");
-        return;
-      }
-
-      if (heartbeat.cleanExit) {
-        console.log("Last session exited cleanly. Nothing to recover.");
-        await clearHeartbeat(projectRoot);
         return;
       }
 
