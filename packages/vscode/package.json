@@ -5,33 +5,52 @@
   "version": "0.1.0",
   "publisher": "bunji",
   "license": "MIT",
+  "homepage": "https://github.com/BFAlajid/dev-savestate#readme",
+  "bugs": {
+    "url": "https://github.com/BFAlajid/dev-savestate/issues"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/BFAlajid/dev-savestate.git",
     "directory": "packages/vscode"
   },
   "author": "BFAlajid",
-  "icon": "icon.png",
+  "keywords": ["git", "context", "save-state", "productivity", "workflow"],
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Other"],
+  "categories": ["Other", "SCM Providers"],
   "main": "./dist/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "dev-savestate spawns shell commands and applies git patches declared in workspace files, which are unsafe in untrusted workspaces."
+    }
+  },
   "activationEvents": [
     "workspaceContains:.savestate",
-    "onView:dvs.savestateView"
+    "onView:dvs.savestateView",
+    "onCommand:dvs.save",
+    "onCommand:dvs.quickSave",
+    "onCommand:dvs.load",
+    "onCommand:dvs.delete",
+    "onCommand:dvs.inspect",
+    "onCommand:dvs.back",
+    "onCommand:dvs.archive",
+    "onCommand:dvs.unarchive",
+    "onCommand:dvs.refresh"
   ],
   "contributes": {
     "commands": [
-      { "command": "dvs.save", "title": "Dev Savestate: Save", "icon": "$(save)" },
-      { "command": "dvs.quickSave", "title": "Dev Savestate: Quick Save", "icon": "$(save-all)" },
-      { "command": "dvs.load", "title": "Dev Savestate: Load", "icon": "$(folder-opened)" },
-      { "command": "dvs.delete", "title": "Dev Savestate: Delete", "icon": "$(trash)" },
-      { "command": "dvs.inspect", "title": "Dev Savestate: Inspect", "icon": "$(info)" },
-      { "command": "dvs.back", "title": "Dev Savestate: Undo Last Load", "icon": "$(discard)" },
-      { "command": "dvs.archive", "title": "Dev Savestate: Archive" },
-      { "command": "dvs.unarchive", "title": "Dev Savestate: Unarchive" },
-      { "command": "dvs.refresh", "title": "Dev Savestate: Refresh", "icon": "$(refresh)" }
+      { "command": "dvs.save", "title": "Save", "category": "Dev Savestate", "icon": "$(save)" },
+      { "command": "dvs.quickSave", "title": "Quick Save", "category": "Dev Savestate", "icon": "$(save-all)" },
+      { "command": "dvs.load", "title": "Load", "category": "Dev Savestate", "icon": "$(folder-opened)" },
+      { "command": "dvs.delete", "title": "Delete", "category": "Dev Savestate", "icon": "$(trash)" },
+      { "command": "dvs.inspect", "title": "Inspect", "category": "Dev Savestate", "icon": "$(info)" },
+      { "command": "dvs.back", "title": "Undo Last Load", "category": "Dev Savestate", "icon": "$(discard)" },
+      { "command": "dvs.archive", "title": "Archive", "category": "Dev Savestate" },
+      { "command": "dvs.unarchive", "title": "Unarchive", "category": "Dev Savestate" },
+      { "command": "dvs.refresh", "title": "Refresh", "category": "Dev Savestate", "icon": "$(refresh)" }
     ],
     "views": {
       "explorer": [

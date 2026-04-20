@@ -125,7 +125,7 @@ Install from the VS Code marketplace or search for "Dev Savestate" in extensions
         src/new-file.ts
 ```
 
-**Git state** is captured using `git diff --binary` for both staged and unstaged changes. Patches are applied with `--whitespace=nowarn` for cross-platform reliability. Conflict resolution uses `--3way` fallback, then `--reject` for manual repair via `dvs repair`.
+**Git state** is captured using `git diff --binary` for both staged and unstaged changes. Patches are applied with `--whitespace=nowarn` for cross-platform reliability. Conflict resolution uses `--3way` fallback, then `--reject` so rejected hunks land as `.rej` files for manual reconciliation.
 
 **Untracked files** are copied into `blobs/` since they have no git history to reconstruct from. Files matching `.gitignore` are excluded.
 

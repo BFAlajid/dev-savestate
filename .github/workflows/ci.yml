@@ -1,0 +1,26 @@
+# CI: build, typecheck, and test every workspace on every push to main and PR.
+# Matrix covers Linux/macOS/Windows x Node 20 and 22 to catch platform regressions early.
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node-version: [20, 22]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build --workspaces --if-present
+      - run: npm run typecheck --workspaces --if-present
+      - run: npm run test --workspaces --if-present
