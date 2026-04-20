@@ -90,6 +90,24 @@ describe("assertSafeProcessEntry", () => {
     ).toThrow(/shell metacharacters/);
   });
 
+  it("rejects command containing a percent sign (cmd.exe %VAR% env expansion)", () => {
+    expect(() =>
+      assertSafeProcessEntry(
+        { name: "bad", command: "echo %PATH%", args: [], cwd: testDir },
+        testDir
+      )
+    ).toThrow(/shell metacharacters/);
+  });
+
+  it("rejects command containing a caret (cmd.exe escape char)", () => {
+    expect(() =>
+      assertSafeProcessEntry(
+        { name: "bad", command: "foo ^& bar", args: [], cwd: testDir },
+        testDir
+      )
+    ).toThrow(/shell metacharacters/);
+  });
+
   it("rejects command with a null byte", () => {
     expect(() =>
       assertSafeProcessEntry(

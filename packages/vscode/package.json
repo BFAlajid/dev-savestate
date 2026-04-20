@@ -103,11 +103,14 @@
   "scripts": {
     "build": "node esbuild.config.mjs",
     "watch": "node esbuild.config.mjs --watch",
-    "package": "vsce package"
+    "package": "vsce package",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/vscode": "^1.85.0",
     "@types/node": "^20.0.0",
+    "@types/cross-spawn": "^6.0.6",
+    "cross-spawn": "^7.0.6",
     "esbuild": "^0.20.0",
     "typescript": "^5.4.0"
   }

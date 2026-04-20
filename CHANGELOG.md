@@ -13,6 +13,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/).
 - State sharing via export/import.
 
 ### Known limitations
-- `dvs doctor` and `dvs repair` referenced in architecture doc are not yet shipped.
+- `dvs doctor` is referenced in ARCHITECTURE.md but not yet implemented.
 - Secret scanner not yet implemented.
 - No `packages/vscode/icon.png` yet — extension ships without icon.

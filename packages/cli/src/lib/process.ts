@@ -28,7 +28,9 @@ export interface ProcessEntry {
 // back to a shell. We reject them even though shell: false is the default,
 // because the command string is still handled by OS loaders and because
 // defense in depth matters if someone later flips shell back on.
-const SHELL_METACHAR_RE = /[;&|$`\n\r<>]/;
+// `%` and `^` are included for cmd.exe: %VAR% is env expansion and ^ is the
+// escape char, so both are injection vectors on Windows shells.
+const SHELL_METACHAR_RE = /[;&|$`\n\r<>%^]/;
 
 export function assertSafeProcessEntry(
   entry: ProcessEntry,
