@@ -5,6 +5,8 @@ import writeFileAtomic from "write-file-atomic";
 import lockfile from "proper-lockfile";
 import type { SaveState, IndexFile, IndexEntry } from "./types.js";
 import * as paths from "./paths.js";
+import { migrateState, migrateIndex, SchemaVersionError } from "./migrations/index.js";
+import { ActiveStateSchema, type ValidatedActiveState } from "./schemas.js";
 
 // --- Name Validation ---
 
@@ -77,15 +79,114 @@ export async function ensureSavestateDir(projectRoot: string): Promise<void> {
   }
 }
 
+// --- Corruption quarantine ---
+//
+// When a persisted JSON file is unparseable or fails schema validation, we
+// move it into .savestate/_corrupt/<ISO-timestamp>-<label>/ instead of
+// deleting it. The user can inspect or hand-repair it later. This also
+// prevents the F5 bug where a corrupt index.json was silently replaced by
+// an empty one, orphaning every state.
+
+function corruptDir(projectRoot: string): string {
+  return path.join(paths.savestateDir(projectRoot), "_corrupt");
+}
+
+function quarantineTimestamp(): string {
+  // ISO with colons replaced so the path is valid on Windows.
+  return new Date().toISOString().replace(/[:.]/g, "-");
+}
+
+/**
+ * Move a corrupt state directory into .savestate/_corrupt/. Best-effort —
+ * if the quarantine move itself fails we surface the original error so the
+ * caller knows *something* is wrong rather than swallowing the failure.
+ * Returns the destination path (useful for the thrown error message) or
+ * null on move failure.
+ */
+async function quarantineStateDir(
+  projectRoot: string,
+  name: string
+): Promise<string | null> {
+  const src = paths.stateDir(projectRoot, name);
+  const dest = path.join(
+    corruptDir(projectRoot),
+    `${quarantineTimestamp()}-${name}`
+  );
+  try {
+    await fs.mkdir(corruptDir(projectRoot), { recursive: true });
+    await fs.rename(src, dest);
+    return dest;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Move a corrupt single file (index.json or _active.json) into
+ * .savestate/_corrupt/. Same best-effort contract as quarantineStateDir.
+ */
+async function quarantineFile(
+  projectRoot: string,
+  absolutePath: string,
+  label: string
+): Promise<string | null> {
+  const dest = path.join(
+    corruptDir(projectRoot),
+    `${quarantineTimestamp()}-${label}`
+  );
+  try {
+    await fs.mkdir(corruptDir(projectRoot), { recursive: true });
+    await fs.rename(absolutePath, dest);
+    return dest;
+  } catch {
+    return null;
+  }
+}
+
 // --- Index ---
 
 export async function readIndex(projectRoot: string): Promise<IndexFile> {
   const p = paths.indexPath(projectRoot);
+  let raw: string;
   try {
-    const raw = await fs.readFile(p, "utf-8");
-    return JSON.parse(raw) as IndexFile;
-  } catch {
-    return { version: 1, states: [] };
+    raw = await fs.readFile(p, "utf-8");
+  } catch (err: any) {
+    // ENOENT is the fresh-project / never-saved path — NOT corruption. Do
+    // not quarantine; just return the empty index shape.
+    if (err?.code === "ENOENT") {
+      return { version: 1, states: [] };
+    }
+    throw err;
+  }
+
+  // Any failure past this point means the file exists but is unreadable as
+  // an index. Quarantine it so we don't silently overwrite with an empty
+  // index (F5), then surface a clear error.
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (parseErr: any) {
+    const dest = await quarantineFile(projectRoot, p, "index.json");
+    throw new Error(
+      `index.json is corrupt (JSON parse failed: ${parseErr?.message ?? "unknown"}). ` +
+        (dest
+          ? `Moved to ${dest}. `
+          : `Could not quarantine the file. `) +
+        `A fresh index will be written on the next save.`
+    );
+  }
+
+  try {
+    return migrateIndex(parsed) as IndexFile;
+  } catch (validationErr: any) {
+    const dest = await quarantineFile(projectRoot, p, "index.json");
+    throw new Error(
+      `index.json failed validation: ${validationErr?.message ?? "unknown"}. ` +
+        (dest
+          ? `Moved to ${dest}. `
+          : `Could not quarantine the file. `) +
+        `A fresh index will be written on the next save.`
+    );
   }
 }
 
@@ -122,12 +223,81 @@ export async function readState(
   name: string
 ): Promise<SaveState> {
   const p = paths.stateJsonPath(projectRoot, name);
+  let raw: string;
   try {
-    const raw = await fs.readFile(p, "utf-8");
-    return JSON.parse(raw) as SaveState;
+    raw = await fs.readFile(p, "utf-8");
   } catch (err: any) {
-    throw new Error(`State '${name}' not found or corrupt: ${err.message}`);
+    // "Not found" is a user-facing error path (e.g. `dvs load ghost`); it
+    // must stay distinguishable from corruption. The existing test suite
+    // asserts the "not found" wording.
+    if (err?.code === "ENOENT") {
+      throw new Error(`State '${name}' not found or corrupt: ${err.message}`);
+    }
+    throw err;
   }
+
+  // Any failure past this point is genuine corruption — quarantine the
+  // whole state directory (not just state.json; note.md and git-patch.diff
+  // may be relevant to a postmortem).
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (parseErr: any) {
+    const dest = await quarantineStateDir(projectRoot, name);
+    throw new Error(
+      `State '${name}' is corrupt (JSON parse failed: ${parseErr?.message ?? "unknown"}). ` +
+        (dest
+          ? `Moved to ${dest}.`
+          : `Could not quarantine the state directory.`)
+    );
+  }
+
+  try {
+    return migrateState(parsed) as SaveState;
+  } catch (validationErr: any) {
+    const dest = await quarantineStateDir(projectRoot, name);
+    throw new Error(
+      `State '${name}' failed validation: ${validationErr?.message ?? "unknown"}. ` +
+        (dest
+          ? `Moved to ${dest}.`
+          : `Could not quarantine the state directory.`)
+    );
+  }
+}
+
+// --- Active heartbeat ---
+//
+// The heartbeat file at .savestate/_active.json is written by `dvs load`
+// (see commands/recover.ts::writeHeartbeat) and read during crash recovery.
+// Absence is benign — most of the time there is no active session. When the
+// file exists but is unparseable we quarantine it and return null so the
+// recovery flow treats this as "no heartbeat" rather than crashing.
+export async function readActive(
+  projectRoot: string
+): Promise<ValidatedActiveState | null> {
+  const p = path.join(paths.savestateDir(projectRoot), "_active.json");
+  let raw: string;
+  try {
+    raw = await fs.readFile(p, "utf-8");
+  } catch (err: any) {
+    if (err?.code === "ENOENT") return null;
+    throw err;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    await quarantineFile(projectRoot, p, "_active.json");
+    return null;
+  }
+
+  const result = ActiveStateSchema.safeParse(parsed);
+  if (!result.success) {
+    await quarantineFile(projectRoot, p, "_active.json");
+    return null;
+  }
+  return result.data;
 }
 
 export async function stateExists(
@@ -310,6 +480,7 @@ export function computeHash(content: string): string {
 
 export async function recoverOrphans(projectRoot: string): Promise<string[]> {
   const recovered: string[] = [];
+  const futureVersion: string[] = [];
   const sDir = paths.statesDir(projectRoot);
   const index = await readIndex(projectRoot);
 
@@ -325,7 +496,12 @@ export async function recoverOrphans(projectRoot: string): Promise<string[]> {
       const stateJsonFile = paths.stateJsonPath(projectRoot, entry);
       try {
         const raw = await fs.readFile(stateJsonFile, "utf-8");
-        const state = JSON.parse(raw) as SaveState;
+        const parsed = JSON.parse(raw);
+        // Run through the same validator the hot path uses so we don't
+        // re-index malformed or future-version payloads. Unlike readState()
+        // we do NOT quarantine here — an orphan may be recoverable via
+        // manual inspection, and moving it would make that harder.
+        const state = migrateState(parsed) as SaveState;
 
         // Valid — add to index
         const indexEntry: IndexEntry = {
@@ -339,13 +515,25 @@ export async function recoverOrphans(projectRoot: string): Promise<string[]> {
         };
         upsertIndexEntry(index, indexEntry);
         recovered.push(entry);
-      } catch {
-        // Invalid state.json — skip, don't delete
+      } catch (err) {
+        // Invalid state.json — skip, don't delete. Differentiate
+        // newer-CLI payloads so the user knows they need to upgrade
+        // rather than assuming the file is corrupt.
+        if (err instanceof SchemaVersionError) {
+          futureVersion.push(entry);
+        }
       }
     }
 
     if (recovered.length > 0) {
       await writeIndex(projectRoot, index);
+    }
+
+    if (futureVersion.length > 0) {
+      const names = futureVersion.join(", ");
+      console.warn(
+        `Skipped ${futureVersion.length} orphan(s) written by a newer dvs: ${names}. Upgrade with \`npm i -g dev-savestate@latest\` to recover.`
+      );
     }
   } catch {
     // states/ doesn't exist yet
