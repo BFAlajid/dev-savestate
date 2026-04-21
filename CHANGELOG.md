@@ -5,6 +5,30 @@ Format: [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- Secret scanner (`packages/cli/src/lib/scanner.ts`) covering AWS /
+  Slack / GitHub / Google / Anthropic / OpenAI / Stripe tokens, PEM
+  private keys, Authorization Bearer headers, and generic credential
+  assignments. `dvs save` warns; `dvs share` blocks unless `--force`.
+  `--strict-secrets` on save escalates warnings to exit 1.
+- Untracked file blob capture — `dvs save` now snapshots brand-new
+  (pre-`git add`) files via `git ls-files --others --exclude-standard`
+  into `<stateDir>/untracked/`. `dvs load` restores them; conflicts
+  refuse overwrite without `--force-untracked`. 10 MB cutoff with
+  `--include-large` override; symlinks skipped.
+- Collector plugin interface (`packages/cli/src/lib/collectors/`) —
+  save/load are now thin orchestrators over Git / Editor / Process /
+  Untracked collectors. External IDE / database / Docker collectors
+  can plug in without touching save.ts or load.ts.
+- VS Code extension: `@vscode/test-electron` + mocha smoke harness.
+  Tests assert activation, command registration parity with
+  package.json, and tree view contribution.
+- `packages/vscode/icon.png` — 128x128 PNG. Regenerator at
+  `scripts/gen-icon.mjs` (pure Node stdlib, no deps) for
+  reproducibility.
+- Tag-triggered release workflow (`.github/workflows/release.yml`).
+  Matrix verify on ubuntu/macos/windows × Node 20/22, then publish
+  CLI and MCP to npm with provenance, and extension to VS Code
+  Marketplace. Gated on `NPM_TOKEN` and `VSCE_PAT` secrets.
 - `packages/mcp`: Model Context Protocol server wrapper exposing dvs as
   tools for Claude Desktop, Claude Code, Cursor, and other MCP clients
   (`list_savestates`, `save_current_context`, `load_savestate`,
@@ -23,6 +47,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/).
   escape char) alongside the existing shell metacharacter set.
 
 ### Changed
+- SaveState schema bumped to v2 (adds required `untracked` field).
+  v1 payloads migrate transparently on read via the scaffold that
+  shipped in `feat(storage): Zod validation + migration scaffold`.
 - Corrupt `state.json` / `index.json` / `_active.json` now quarantines
   to `.savestate/_corrupt/<ISO>-<name>/` instead of silently returning
   an empty index or crashing.
@@ -43,5 +70,3 @@ Format: [Keep a Changelog](https://keepachangelog.com/).
 
 ### Known limitations
 - `dvs doctor` is referenced in ARCHITECTURE.md but not yet implemented.
-- Secret scanner not yet implemented.
-- No `packages/vscode/icon.png` yet — extension ships without icon.
