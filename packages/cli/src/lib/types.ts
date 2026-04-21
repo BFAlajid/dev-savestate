@@ -1,5 +1,5 @@
 export interface SaveState {
-  version: 1;
+  version: 2;
   name: string;
   createdAt: string;
   updatedAt: string;
@@ -36,13 +36,26 @@ export interface SaveState {
     source: "dvs-run" | "config";
   }>;
 
+  /**
+   * Manifest of brand-new (not-yet-`git add`ed) files captured alongside the
+   * git patch. Blob bytes live at <stateDir>/untracked/<relativePath>.
+   * Added in schema v2. v1 payloads are migrated forward with `{ files: [] }`.
+   */
+  untracked: {
+    files: Array<{
+      relativePath: string;
+      size: number;
+      mode: number;
+    }>;
+  };
+
   archived: boolean;
   lastLoadedAt?: string;
   loadCount: number;
 }
 
 export interface IndexFile {
-  version: 1;
+  version: 2;
   states: IndexEntry[];
 }
 

@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { findProjectRoot } from "../lib/git.js";
 import { ensureSavestateDir, readState, acquireLock, atomicSaveState, stateExists, validateStateName, resolveStateDir } from "../lib/storage.js";
+import { scanForSecrets, formatFindings, type ScanFinding } from "../lib/scanner.js";
 
 interface SharePackage {
   manifest: { version: 1; name: string; createdAt: string; exportedAt: string; files: string[] };
@@ -15,7 +16,9 @@ export const shareCommand = new Command("share")
   .description("Export a save state as a portable .savestate.json package")
   .argument("<name>", "Name of the save state to export")
   .option("-o, --output <path>", "Output file path")
-  .action(async (name: string, opts: { output?: string }) => {
+  .option("-f, --force", "Export even if suspected secrets are detected")
+  .option("--skip-scan", "Alias for --force")
+  .action(async (name: string, opts: { output?: string; force?: boolean; skipScan?: boolean }) => {
     try {
       const projectRoot = await findProjectRoot(process.cwd());
       await ensureSavestateDir(projectRoot);
@@ -26,6 +29,45 @@ export const shareCommand = new Command("share")
       let patchDiff = "";
       try { noteMd = await fs.readFile(path.join(dir, "note.md"), "utf-8"); } catch {}
       try { patchDiff = await fs.readFile(path.join(dir, "git-patch.diff"), "utf-8"); } catch {}
+
+      // Secret scan: note, every process command+args, and the full patch.
+      // `share` ships state off the machine, so this is blocking by default.
+      const findings: ScanFinding[] = [];
+      if (state.note) findings.push(...scanForSecrets(state.note, "note"));
+      const procs = state.processes || [];
+      for (let i = 0; i < procs.length; i++) {
+        const p = procs[i];
+        if (p.command) {
+          findings.push(...scanForSecrets(p.command, `processes[${i}].command`));
+        }
+        if (p.args && p.args.length) {
+          findings.push(
+            ...scanForSecrets(p.args.join(" "), `processes[${i}].args`)
+          );
+        }
+      }
+      if (patchDiff) findings.push(...scanForSecrets(patchDiff, "patch"));
+
+      const force = opts.force || opts.skipScan;
+      if (findings.length > 0) {
+        const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
+        console.error(yellow("\u26A0 Possible secrets detected:"));
+        console.error(formatFindings(findings));
+        if (!force) {
+          console.error(
+            yellow(
+              "Blocked: share refuses to export state with suspected secrets. Re-run with --force to override."
+            )
+          );
+          process.exitCode = 1;
+          return;
+        }
+        console.error(
+          yellow(
+            "Proceeding due to --force. These values will be written to the export."
+          )
+        );
+      }
 
       const exportState = { ...state, projectRoot: "." };
       const pkg: SharePackage = {

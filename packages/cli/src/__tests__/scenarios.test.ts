@@ -54,7 +54,7 @@ function buildState(
 ): SaveState {
   const now = new Date().toISOString();
   return {
-    version: 1,
+    version: 2,
     name,
     createdAt: now,
     updatedAt: now,
@@ -70,6 +70,7 @@ function buildState(
       patchHash: computeHash(""),
     },
     processes: overrides.processes || [],
+    untracked: overrides.untracked || { files: [] },
     archived: false,
     loadCount: 0,
     ...overrides,
@@ -616,7 +617,7 @@ describe("Index integrity", () => {
     // readIndex returns empty states when index doesn't exist
     const index = await readIndex(testDir);
     expect(index.states).toHaveLength(0);
-    expect(index.version).toBe(1);
+    expect(index.version).toBe(2);
   });
 
   it("16. Save-delete-save same name — works cleanly", async () => {
@@ -677,7 +678,7 @@ describe("Index integrity", () => {
 describe("Display", () => {
   it("17. Mental stack with note and nextStep — both sections appear in output", () => {
     const state: SaveState = {
-      version: 1,
+      version: 2,
       name: "display-test",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -693,6 +694,7 @@ describe("Display", () => {
         patchHash: "fakehash",
       },
       processes: [],
+      untracked: { files: [] },
       archived: false,
       loadCount: 0,
     };

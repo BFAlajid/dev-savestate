@@ -47,7 +47,7 @@ function buildState(
 ): SaveState {
   const now = new Date().toISOString();
   return {
-    version: 1,
+    version: 2,
     name,
     createdAt: now,
     updatedAt: now,
@@ -63,6 +63,7 @@ function buildState(
       patchHash: computeHash(""),
     },
     processes: overrides.processes || [],
+    untracked: overrides.untracked || { files: [] },
     archived: false,
     loadCount: 0,
     ...overrides,

@@ -8,8 +8,6 @@ import {
   getBranch,
   getCommitHash,
   getDiff,
-  checkoutBranch,
-  applyPatch,
   stashChanges,
 } from "../lib/git.js";
 import {
@@ -18,9 +16,15 @@ import {
   ensureSavestateDir,
   validateStateName,
 } from "../lib/storage.js";
-import { patchPath } from "../lib/paths.js";
+import { stateDir as resolveStateDirPath } from "../lib/paths.js";
 import { printMentalStack } from "../lib/display.js";
-import { restoreProcesses } from "../lib/process.js";
+import {
+  gitCollector,
+  editorCollector,
+  processCollector,
+  untrackedCollector,
+  type RestoreContext,
+} from "../lib/collectors/index.js";
 import { saveCheckpoint } from "./back.js";
 import { writeHeartbeat } from "./recover.js";
 import writeFileAtomic from "write-file-atomic";
@@ -44,7 +48,8 @@ export const loadCommand = new Command("load")
   .description("Restore a saved development context")
   .argument("<name>", "Name of the save state to load")
   .option("-f, --force", "Skip dirty tree warning")
-  .action(async (name: string, opts: { force?: boolean }) => {
+  .option("--force-untracked", "Overwrite existing untracked files that differ from the saved blobs")
+  .action(async (name: string, opts: { force?: boolean; forceUntracked?: boolean }) => {
     let release: (() => Promise<void>) | null = null;
 
     try {
@@ -63,13 +68,15 @@ export const loadCommand = new Command("load")
       const state = await readState(projectRoot, name);
       const git = createGit(projectRoot);
 
-      // Save pre-load checkpoint for dvs back
+      // Save pre-load checkpoint for dvs back — must happen before any
+      // checkout/patch/spawn so `dvs back` can fully undo this load.
       const currentBranch = await getBranch(git);
       const currentHash = await getCommitHash(git);
       const currentDiff = await getDiff(git);
       await saveCheckpoint(projectRoot, currentBranch, currentHash, currentDiff || undefined);
 
-      // Dirty tree check
+      // Dirty tree check — gates any destructive collector restore so we
+      // never clobber unsaved local changes without the user's consent.
       const dirty = await isDirty(git);
       if (dirty && !opts.force) {
         console.log("Working tree has uncommitted changes.\n");
@@ -96,35 +103,36 @@ export const loadCommand = new Command("load")
         }
       }
 
-      // Checkout branch
-      if (currentBranch !== state.git.branch) {
-        const result = await checkoutBranch(git, state.git.branch);
-        if (!result.success) {
-          console.warn(`Warning: ${result.message}`);
-          console.warn(`Staying on branch '${currentBranch}'`);
-        }
-      }
+      // Build a shared RestoreContext that every collector sees. `opts`
+      // carries CLI flags; collectors only consume the ones they recognize.
+      const stateDirPath = resolveStateDirPath(projectRoot, name);
+      const restoreCtx: RestoreContext = {
+        projectRoot,
+        git,
+        stateDir: stateDirPath,
+        opts: {
+          force: !!opts.force,
+          forceUntracked: !!opts.forceUntracked,
+        },
+        warn: (m) => console.warn(m),
+      };
 
-      // Apply patch
-      if (state.git.hasUncommittedChanges) {
-        const patchFile = patchPath(projectRoot, name);
-        const result = await applyPatch(git, patchFile);
-        if (result.alreadyApplied) {
-          console.log("Patch already applied, skipping.");
-        } else if (result.hadConflicts) {
-          console.warn(`Warning: ${result.message}`);
-        } else if (result.applied) {
-          console.log("Patch applied.");
-        } else {
-          console.warn(`Warning: ${result.message}`);
-        }
-      }
+      // Restore in pre-refactor observable order:
+      //   1. git (checkout + patch) — working tree must be on target
+      //      branch and patched before anything else writes files.
+      //   2. untracked — new files materialized into the current tree.
+      //   3. mental stack + editor hints (cross-cutting UX).
+      //   4. processes — respawn after the tree is stable.
+      // editorCollector.restore is a no-op on the CLI (see its source);
+      // we still call it so the collector pipeline is uniform and a
+      // future IDE collector override plugs in here without a load.ts
+      // edit.
+      await gitCollector.restore(restoreCtx, state);
+      await untrackedCollector.restore(restoreCtx, state);
 
-      // Display mental stack
       console.log("");
       printMentalStack(state);
 
-      // Editor hints
       if (state.editor?.openFiles?.length) {
         console.log("\nTo open files:");
         for (const file of state.editor.openFiles) {
@@ -132,18 +140,17 @@ export const loadCommand = new Command("load")
           console.log(`  code -g "${filePath}:${file.cursorLine}:${file.cursorColumn}"`);
         }
       }
+      await editorCollector.restore(restoreCtx, state);
 
-      // Restore processes
-      if (state.processes?.length) {
-        const { started, skipped } = await restoreProcesses(state.processes, projectRoot);
-        if (started.length) console.log(`\nProcesses started: ${started.join(", ")}`);
-        if (skipped.length) console.log(`Processes skipped: ${skipped.join(", ")}`);
-      }
+      await processCollector.restore(restoreCtx, state);
 
-      // Write heartbeat
+      // Write heartbeat — records this state as the active session so
+      // `dvs recover` can detect crashes and offer to reload.
       await writeHeartbeat(projectRoot, name);
 
-      // Update metadata
+      // Update metadata — lastLoadedAt / loadCount are used by list and
+      // timeline; keeping the write at the end of load preserves its
+      // "crash during load leaves the old metadata" semantics.
       state.lastLoadedAt = new Date().toISOString();
       state.loadCount = (state.loadCount || 0) + 1;
       state.updatedAt = state.lastLoadedAt;

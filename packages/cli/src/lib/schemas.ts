@@ -25,7 +25,7 @@ import { z } from "zod";
 
 // --- Version constant ---
 
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 // --- Git sub-schema ---
 
@@ -70,6 +70,29 @@ const SavedProcessSchema = z
   })
   .passthrough();
 
+// --- Untracked blob manifest sub-schema ---
+//
+// Captures brand-new (not-yet-`git add`ed) files so that a round-trip save
+// → delete working copy → load restores them. Blobs themselves live next to
+// state.json under <stateDir>/untracked/ mirroring the working-tree layout;
+// this manifest is the authoritative index of which files were captured.
+// Added in schema v2 — see registry.ts for the v1→v2 migration that fills
+// this in with { files: [] } for pre-existing states.
+
+const UntrackedFileEntrySchema = z
+  .object({
+    relativePath: z.string(),
+    size: z.number(),
+    mode: z.number(),
+  })
+  .passthrough();
+
+const UntrackedManifestSchema = z
+  .object({
+    files: z.array(UntrackedFileEntrySchema),
+  })
+  .passthrough();
+
 // --- SaveState ---
 
 export const SaveStateSchema = z
@@ -89,6 +112,9 @@ export const SaveStateSchema = z
     editor: EditorStateSchema.optional(),
 
     processes: z.array(SavedProcessSchema),
+
+    // v2+: required. v1 payloads get { files: [] } via registry.ts.
+    untracked: UntrackedManifestSchema,
 
     archived: z.boolean(),
     lastLoadedAt: z.string().optional(),

@@ -154,7 +154,7 @@ export async function readIndex(projectRoot: string): Promise<IndexFile> {
     // ENOENT is the fresh-project / never-saved path — NOT corruption. Do
     // not quarantine; just return the empty index shape.
     if (err?.code === "ENOENT") {
-      return { version: 1, states: [] };
+      return { version: 2, states: [] };
     }
     throw err;
   }
@@ -314,11 +314,20 @@ export async function stateExists(
 
 // --- Atomic Save ---
 
+/**
+ * Optional hook invoked with the staging directory path so the caller can
+ * drop additional files/subtrees (e.g. `untracked/`) before the atomic
+ * rename. Any files written here are committed along with state.json on
+ * success, or cleaned up with the staging dir on failure.
+ */
+export type StagingPopulator = (stagingDir: string) => Promise<void>;
+
 export async function atomicSaveState(
   projectRoot: string,
   name: string,
   state: SaveState,
-  patchContent: string
+  patchContent: string,
+  populateStaging?: StagingPopulator
 ): Promise<void> {
   const tmpBase = paths.tmpDir(projectRoot);
   const tmpId = crypto.randomUUID();
@@ -342,6 +351,12 @@ export async function atomicSaveState(
 
     // Write git-patch.diff
     await writeFileAtomic(path.join(staging, "git-patch.diff"), patchContent);
+
+    // Populate extra content (e.g. untracked/). Runs inside the same staging
+    // dir so a failure here cleans up along with the JSON/note/patch writes.
+    if (populateStaging) {
+      await populateStaging(staging);
+    }
 
     // Atomic rename: remove existing state dir if present, then rename
     const target = paths.stateDir(projectRoot, name);

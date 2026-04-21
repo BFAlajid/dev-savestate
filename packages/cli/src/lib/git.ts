@@ -67,6 +67,26 @@ export async function isDirty(git: SimpleGit): Promise<boolean> {
   return !status.isClean();
 }
 
+/**
+ * List untracked files relative to the repo root. Honors `.gitignore` via
+ * `--exclude-standard` so ignored files are NOT returned (we never hand-roll
+ * gitignore parsing — let git be authoritative). Directories are not listed
+ * as entries; git expands them to their contained files.
+ *
+ * Returns an array of POSIX-style relative paths (git's native output format).
+ * Callers should normalize to platform paths via `path.join` before touching
+ * disk. An empty array is returned when the working tree has no untracked
+ * files — it is NOT an error condition.
+ */
+export async function getUntrackedFiles(git: SimpleGit): Promise<string[]> {
+  const raw = await git.raw(["ls-files", "--others", "--exclude-standard"]);
+  if (!raw) return [];
+  return raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
 export async function getDiff(git: SimpleGit): Promise<string> {
   // Unstaged changes (tracked files, binary-capable)
   const unstaged = await git.diff(["--binary", "HEAD"]);

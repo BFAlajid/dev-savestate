@@ -48,7 +48,7 @@ function buildValidState(
 ): SaveState {
   const now = new Date().toISOString();
   return {
-    version: 1,
+    version: 2,
     name,
     createdAt: now,
     updatedAt: now,
@@ -63,6 +63,7 @@ function buildValidState(
       patchHash: computeHash(""),
     },
     processes: [],
+    untracked: { files: [] },
     archived: false,
     loadCount: 0,
     ...overrides,
@@ -86,7 +87,7 @@ afterEach(async () => {
 // ============================================================
 
 describe("schemas parse canonical payloads", () => {
-  it("SaveStateSchema parses a full v1 state", () => {
+  it("SaveStateSchema parses a full v2 state (with untracked manifest)", () => {
     const state = buildValidState("canonical", "/fake/path", {
       nextStep: "take a break",
       tags: ["feature", "auth"],
@@ -119,7 +120,7 @@ describe("schemas parse canonical payloads", () => {
   });
 
   it("IndexFileSchema parses an empty index", () => {
-    expect(IndexFileSchema.safeParse({ version: 1, states: [] }).success).toBe(
+    expect(IndexFileSchema.safeParse({ version: 2, states: [] }).success).toBe(
       true
     );
   });
@@ -181,7 +182,7 @@ describe("schemas parse canonical payloads", () => {
 // ============================================================
 
 describe("readState validation and quarantine", () => {
-  it("reads a valid v1 state through the migration pipeline", async () => {
+  it("reads a valid v2 state through the migration pipeline", async () => {
     await ensureSavestateDir(testDir);
     const state = buildValidState("valid", testDir, { note: "hello" });
     await atomicSaveState(testDir, "valid", state, "");
@@ -189,7 +190,7 @@ describe("readState validation and quarantine", () => {
     const loaded = await readState(testDir, "valid");
     expect(loaded.name).toBe("valid");
     expect(loaded.note).toBe("hello");
-    expect(loaded.version).toBe(1);
+    expect(loaded.version).toBe(2);
   });
 
   it("quarantines and throws on truncated JSON in state.json", async () => {
@@ -271,7 +272,7 @@ describe("readIndex ENOENT vs corruption", () => {
   it("returns empty on ENOENT (no quarantine, no throw)", async () => {
     // Don't even call ensureSavestateDir — true fresh-project path
     const idx = await readIndex(testDir);
-    expect(idx.version).toBe(1);
+    expect(idx.version).toBe(2);
     expect(idx.states).toHaveLength(0);
 
     const corruptRoot = path.join(testDir, ".savestate", "_corrupt");
@@ -415,7 +416,7 @@ describe("readActive", () => {
 // ============================================================
 
 describe("migrateState version handling", () => {
-  it("returns shape-equal output for a valid v1 state (zero-migration identity)", () => {
+  it("returns shape-equal output for a valid v2 state (zero-migration identity)", () => {
     const state = buildValidState("identity", "/fake/path");
     const out = migrateState(state);
     expect(out).toEqual(state);
@@ -434,7 +435,7 @@ describe("migrateState version handling", () => {
 
   it("throws SchemaValidationError with useful Zod issues", () => {
     expect(() =>
-      migrateState({ version: 1, name: 42, note: "wrong type" })
+      migrateState({ version: 2, name: 42, note: "wrong type" })
     ).toThrow(SchemaValidationError);
   });
 
@@ -451,10 +452,17 @@ describe("migrateState version handling", () => {
 });
 
 describe("migrateIndex version handling", () => {
-  it("returns shape-equal output for a valid v1 index", () => {
-    const idx = { version: 1, states: [] };
+  it("returns shape-equal output for a valid v2 index", () => {
+    const idx = { version: 2, states: [] };
     const out = migrateIndex(idx);
     expect(out).toEqual(idx);
+  });
+
+  it("upgrades a v1 index to v2 via the registered no-op bump", () => {
+    const v1 = { version: 1, states: [] };
+    const out = migrateIndex(v1);
+    expect(out.version).toBe(2);
+    expect(out.states).toEqual([]);
   });
 
   it("throws SchemaVersionError on future-version index", () => {
@@ -465,22 +473,134 @@ describe("migrateIndex version handling", () => {
 });
 
 // ============================================================
-// Registry scaffold
+// Registry: v1 → v2 migration (first real migration)
 // ============================================================
 
-describe("migration registry scaffold", () => {
-  it("is empty at CURRENT_SCHEMA_VERSION = 1 (no migrations needed yet)", () => {
-    // Sanity: the scaffold ships with no migrations because v1 is current.
-    // When we bump to v2, we expect stateMigrations[1] to be populated.
-    expect(CURRENT_SCHEMA_VERSION).toBe(1);
-    expect(Object.keys(stateMigrations)).toHaveLength(0);
-    expect(Object.keys(indexMigrations)).toHaveLength(0);
+describe("v1 → v2 state migration", () => {
+  it("CURRENT_SCHEMA_VERSION is 2 and state migration 1→2 is registered", () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(2);
+    expect(typeof stateMigrations[1]).toBe("function");
+    expect(typeof indexMigrations[1]).toBe("function");
   });
 
-  it("applying zero migrations returns a valid payload unchanged (identity property)", () => {
-    const state = buildValidState("zero-mig", "/p");
-    expect(migrateState(state)).toEqual(state);
-    const idx = { version: 1, states: [] };
-    expect(migrateIndex(idx)).toEqual(idx);
+  it("migrates a synthetic v1 state payload, filling in empty untracked manifest", () => {
+    // Simulate what a v1 state.json would look like on disk: version 1,
+    // no `untracked` field. The migration must add `{ files: [] }` and
+    // bump version so the payload passes the v2 Zod schema.
+    const v1Raw = {
+      version: 1,
+      name: "old-save",
+      createdAt: "2026-03-01T00:00:00Z",
+      updatedAt: "2026-03-01T00:00:00Z",
+      projectRoot: "/fake/path",
+      note: "pre-v2 save",
+      tags: [],
+      git: {
+        branch: "master",
+        commitHash: "deadbeef",
+        hasUncommittedChanges: false,
+        patchFile: "git-patch.diff",
+        patchHash: computeHash(""),
+      },
+      processes: [],
+      archived: false,
+      loadCount: 0,
+    };
+    const out = migrateState(v1Raw);
+    expect(out.version).toBe(2);
+    // The critical assertion: new `untracked` field is present and empty.
+    expect((out as any).untracked).toEqual({ files: [] });
+    // All v1 fields preserved verbatim.
+    expect(out.name).toBe("old-save");
+    expect(out.note).toBe("pre-v2 save");
+    expect(out.git.branch).toBe("master");
+  });
+
+  it("reads a synthetic v1 state.json off disk → returns v2-shaped state", async () => {
+    await ensureSavestateDir(testDir);
+    // Manually write a v1-shaped state.json into the expected layout.
+    const stateDirPath = paths.stateDir(testDir, "legacy");
+    await fs.mkdir(stateDirPath, { recursive: true });
+    const v1Payload = {
+      version: 1,
+      name: "legacy",
+      createdAt: "2026-03-01T00:00:00Z",
+      updatedAt: "2026-03-01T00:00:00Z",
+      projectRoot: testDir,
+      note: "pre-v2 payload",
+      tags: [],
+      git: {
+        branch: "master",
+        commitHash: "deadbeef",
+        hasUncommittedChanges: false,
+        patchFile: "git-patch.diff",
+        patchHash: computeHash(""),
+      },
+      processes: [],
+      archived: false,
+      loadCount: 0,
+    };
+    await fs.writeFile(
+      paths.stateJsonPath(testDir, "legacy"),
+      JSON.stringify(v1Payload, null, 2)
+    );
+    // Supporting files so readState doesn't trip on missing artifacts.
+    await fs.writeFile(path.join(stateDirPath, "note.md"), "# legacy\n");
+    await fs.writeFile(path.join(stateDirPath, "git-patch.diff"), "");
+
+    const loaded = await readState(testDir, "legacy");
+    expect(loaded.version).toBe(2);
+    expect(loaded.untracked).toEqual({ files: [] });
+    expect(loaded.note).toBe("pre-v2 payload");
+  });
+
+  it("re-saving a migrated v1 state writes v2 on disk", async () => {
+    await ensureSavestateDir(testDir);
+    // Seed a v1 payload on disk.
+    const stateDirPath = paths.stateDir(testDir, "upgraded");
+    await fs.mkdir(stateDirPath, { recursive: true });
+    const v1Payload = {
+      version: 1,
+      name: "upgraded",
+      createdAt: "2026-03-01T00:00:00Z",
+      updatedAt: "2026-03-01T00:00:00Z",
+      projectRoot: testDir,
+      note: "to be upgraded",
+      tags: [],
+      git: {
+        branch: "master",
+        commitHash: "deadbeef",
+        hasUncommittedChanges: false,
+        patchFile: "git-patch.diff",
+        patchHash: computeHash(""),
+      },
+      processes: [],
+      archived: false,
+      loadCount: 0,
+    };
+    await fs.writeFile(
+      paths.stateJsonPath(testDir, "upgraded"),
+      JSON.stringify(v1Payload, null, 2)
+    );
+    await fs.writeFile(path.join(stateDirPath, "note.md"), "# upgraded\n");
+    await fs.writeFile(path.join(stateDirPath, "git-patch.diff"), "");
+
+    // Read-through-migration.
+    const migrated = await readState(testDir, "upgraded");
+    expect(migrated.version).toBe(2);
+
+    // Re-save it. This is the second half of the round-trip: the migrated
+    // in-memory state is written back verbatim.
+    await atomicSaveState(testDir, "upgraded", migrated, "");
+
+    // Inspect the on-disk JSON directly — not via readState, since readState
+    // would just re-run the migration and mask a stale value.
+    const rawOnDisk = await fs.readFile(
+      paths.stateJsonPath(testDir, "upgraded"),
+      "utf-8"
+    );
+    const parsed = JSON.parse(rawOnDisk);
+    expect(parsed.version).toBe(2);
+    expect(parsed.untracked).toEqual({ files: [] });
   });
 });
