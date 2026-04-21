@@ -15,12 +15,22 @@
     "directory": "packages/vscode"
   },
   "author": "BFAlajid",
-  "keywords": ["git", "context", "save-state", "productivity", "workflow"],
+  "keywords": [
+    "git",
+    "context",
+    "save-state",
+    "productivity",
+    "workflow"
+  ],
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Other", "SCM Providers"],
+  "categories": [
+    "Other",
+    "SCM Providers"
+  ],
   "main": "./dist/extension.js",
+  "icon": "icon.png",
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": false,
@@ -42,15 +52,58 @@
   ],
   "contributes": {
     "commands": [
-      { "command": "dvs.save", "title": "Save", "category": "Dev Savestate", "icon": "$(save)" },
-      { "command": "dvs.quickSave", "title": "Quick Save", "category": "Dev Savestate", "icon": "$(save-all)" },
-      { "command": "dvs.load", "title": "Load", "category": "Dev Savestate", "icon": "$(folder-opened)" },
-      { "command": "dvs.delete", "title": "Delete", "category": "Dev Savestate", "icon": "$(trash)" },
-      { "command": "dvs.inspect", "title": "Inspect", "category": "Dev Savestate", "icon": "$(info)" },
-      { "command": "dvs.back", "title": "Undo Last Load", "category": "Dev Savestate", "icon": "$(discard)" },
-      { "command": "dvs.archive", "title": "Archive", "category": "Dev Savestate" },
-      { "command": "dvs.unarchive", "title": "Unarchive", "category": "Dev Savestate" },
-      { "command": "dvs.refresh", "title": "Refresh", "category": "Dev Savestate", "icon": "$(refresh)" }
+      {
+        "command": "dvs.save",
+        "title": "Save",
+        "category": "Dev Savestate",
+        "icon": "$(save)"
+      },
+      {
+        "command": "dvs.quickSave",
+        "title": "Quick Save",
+        "category": "Dev Savestate",
+        "icon": "$(save-all)"
+      },
+      {
+        "command": "dvs.load",
+        "title": "Load",
+        "category": "Dev Savestate",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "dvs.delete",
+        "title": "Delete",
+        "category": "Dev Savestate",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "dvs.inspect",
+        "title": "Inspect",
+        "category": "Dev Savestate",
+        "icon": "$(info)"
+      },
+      {
+        "command": "dvs.back",
+        "title": "Undo Last Load",
+        "category": "Dev Savestate",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "dvs.archive",
+        "title": "Archive",
+        "category": "Dev Savestate"
+      },
+      {
+        "command": "dvs.unarchive",
+        "title": "Unarchive",
+        "category": "Dev Savestate"
+      },
+      {
+        "command": "dvs.refresh",
+        "title": "Refresh",
+        "category": "Dev Savestate",
+        "icon": "$(refresh)"
+      }
     ],
     "views": {
       "explorer": [
@@ -63,21 +116,61 @@
     },
     "menus": {
       "view/title": [
-        { "command": "dvs.save", "when": "view == dvs.savestateView", "group": "navigation" },
-        { "command": "dvs.refresh", "when": "view == dvs.savestateView", "group": "navigation" }
+        {
+          "command": "dvs.save",
+          "when": "view == dvs.savestateView",
+          "group": "navigation"
+        },
+        {
+          "command": "dvs.refresh",
+          "when": "view == dvs.savestateView",
+          "group": "navigation"
+        }
       ],
       "view/item/context": [
-        { "command": "dvs.load", "when": "viewItem == savestate", "group": "1_actions@1" },
-        { "command": "dvs.inspect", "when": "viewItem == savestate || viewItem == savestate-archived", "group": "1_actions@2" },
-        { "command": "dvs.archive", "when": "viewItem == savestate", "group": "2_manage@1" },
-        { "command": "dvs.unarchive", "when": "viewItem == savestate-archived", "group": "2_manage@1" },
-        { "command": "dvs.delete", "when": "viewItem == savestate || viewItem == savestate-archived", "group": "3_danger@1" }
+        {
+          "command": "dvs.load",
+          "when": "viewItem == savestate",
+          "group": "1_actions@1"
+        },
+        {
+          "command": "dvs.inspect",
+          "when": "viewItem == savestate || viewItem == savestate-archived",
+          "group": "1_actions@2"
+        },
+        {
+          "command": "dvs.archive",
+          "when": "viewItem == savestate",
+          "group": "2_manage@1"
+        },
+        {
+          "command": "dvs.unarchive",
+          "when": "viewItem == savestate-archived",
+          "group": "2_manage@1"
+        },
+        {
+          "command": "dvs.delete",
+          "when": "viewItem == savestate || viewItem == savestate-archived",
+          "group": "3_danger@1"
+        }
       ]
     },
     "keybindings": [
-      { "command": "dvs.save", "key": "ctrl+shift+s s", "mac": "cmd+shift+s s" },
-      { "command": "dvs.quickSave", "key": "ctrl+shift+s q", "mac": "cmd+shift+s q" },
-      { "command": "dvs.load", "key": "ctrl+shift+s l", "mac": "cmd+shift+s l" }
+      {
+        "command": "dvs.save",
+        "key": "ctrl+shift+s s",
+        "mac": "cmd+shift+s s"
+      },
+      {
+        "command": "dvs.quickSave",
+        "key": "ctrl+shift+s q",
+        "mac": "cmd+shift+s q"
+      },
+      {
+        "command": "dvs.load",
+        "key": "ctrl+shift+s l",
+        "mac": "cmd+shift+s l"
+      }
     ],
     "configuration": {
       "title": "Dev Savestate",
@@ -104,14 +197,20 @@
     "build": "node esbuild.config.mjs",
     "watch": "node esbuild.config.mjs --watch",
     "package": "vsce package",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "pretest": "tsc -p tsconfig.test.json",
+    "test": "node ./out-test/__tests__/runTest.js"
   },
   "devDependencies": {
-    "@types/vscode": "^1.85.0",
-    "@types/node": "^20.0.0",
     "@types/cross-spawn": "^6.0.6",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^2.5.2",
     "cross-spawn": "^7.0.6",
     "esbuild": "^0.20.0",
+    "glob": "^11.1.0",
+    "mocha": "^10.8.2",
     "typescript": "^5.4.0"
   }
 }

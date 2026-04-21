@@ -23,4 +23,14 @@ jobs:
       - run: npm ci
       - run: npm run build --workspaces --if-present
       - run: npm run typecheck --workspaces --if-present
-      - run: npm run test --workspaces --if-present
+      # CLI tests run on every OS. The VS Code extension tests launch an
+      # Electron instance via @vscode/test-electron and need a display — we
+      # run them on Linux only under xvfb. On macOS/Windows runners we skip
+      # the extension package and only test the CLI. See packages/vscode
+      # test harness for details.
+      - name: Test (non-Linux — CLI only)
+        if: runner.os != 'Linux'
+        run: npm run test --workspace=packages/cli --if-present
+      - name: Test (Linux — all workspaces, xvfb for VS Code)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test --workspaces --if-present
