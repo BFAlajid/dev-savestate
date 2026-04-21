@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { runCliRaw } from "../services/cli";
 import { readIndex } from "../services/storage-reader";
 import { pickState } from "../ui/quick-pick";
+import { showActionableError } from "../ui/error-toast";
 
 export async function executeDelete(
   workspaceRoot: string,
@@ -27,9 +28,18 @@ export async function executeDelete(
   if (confirm !== "Delete") return;
 
   try {
-    await runCliRaw(workspaceRoot, ["delete", stateName]);
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Deleting save state '${stateName}'...`,
+        cancellable: false,
+      },
+      () => runCliRaw(workspaceRoot, ["delete", stateName as string])
+    );
     vscode.window.showInformationMessage(`Deleted: ${stateName}`);
-  } catch (err: any) {
-    vscode.window.showErrorMessage(`Delete failed: ${err.message}`);
+  } catch (err: unknown) {
+    // No Retry — deletion is destructive; auto re-invoking past a
+    // failure could hide a real problem.
+    await showActionableError("Delete failed", err);
   }
 }

@@ -63,7 +63,9 @@ export interface IndexEntry {
 
 export interface ActiveState {
   stateName: string;
-  lastHeartbeat: string;
+  // Accept both ISO string (current CLI) and epoch ms (future migration).
+  // `new Date(x)` handles either.
+  lastHeartbeat: string | number;
   pid: number;
 }
 

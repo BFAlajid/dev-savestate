@@ -57,12 +57,17 @@ export function activate(context: vscode.ExtensionContext): void {
   activeWatcher.onDidCreate(() => startStatusBarTimer(projectRoot));
   activeWatcher.onDidDelete(() => startStatusBarTimer(projectRoot));
 
-  // Helper to run command + refresh tree after
+  // Helper to run command + refresh tree after. Uses try/finally so the
+  // refresh still runs when the inner command throws — otherwise the
+  // sidebar can show stale state after a failed save/load.
   function withRefresh(fn: () => Promise<void>): () => Promise<void> {
     return async () => {
-      await fn();
-      treeProvider.refresh();
-      startStatusBarTimer(projectRoot);
+      try {
+        await fn();
+      } finally {
+        treeProvider.refresh();
+        startStatusBarTimer(projectRoot);
+      }
     };
   }
 

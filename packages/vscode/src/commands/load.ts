@@ -3,6 +3,12 @@ import { runCli } from "../services/cli";
 import { readIndex, readState } from "../services/storage-reader";
 import { restoreEditorState } from "../services/editor-restore";
 import { pickState } from "../ui/quick-pick";
+import { showActionableError } from "../ui/error-toast";
+import { COMMANDS } from "../constants";
+
+// Load applies a git patch which can touch thousands of files on big
+// repos. 2 minutes matches the save budget.
+const LOAD_TIMEOUT_MS = 120_000;
 
 export async function executeLoad(
   workspaceRoot: string,
@@ -27,11 +33,19 @@ export async function executeLoad(
   }
 
   try {
-    await runCli(workspaceRoot, [
-      "load",
-      stateName,
-      "--force",
-    ]);
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Loading save state '${stateName}'...`,
+        cancellable: false,
+      },
+      () =>
+        runCli(
+          workspaceRoot,
+          ["load", stateName as string, "--force"],
+          LOAD_TIMEOUT_MS
+        )
+    );
 
     // Load succeeded (or at least didn't throw)
     // Read the state to get editor info
@@ -53,7 +67,10 @@ export async function executeLoad(
       // State read failed but load may have succeeded
       vscode.window.showInformationMessage(`Loaded: ${stateName}`);
     }
-  } catch (err: any) {
-    vscode.window.showErrorMessage(`Load failed: ${err.message}`);
+  } catch (err: unknown) {
+    await showActionableError("Load failed", err, {
+      id: COMMANDS.load,
+      args: [{ entry: { name: stateName } }],
+    });
   }
 }

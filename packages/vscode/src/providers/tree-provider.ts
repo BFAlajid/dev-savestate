@@ -42,7 +42,8 @@ class GroupItem extends vscode.TreeItem {
   }
 }
 
-type TreeNode = SaveStateItem | GroupItem;
+// Allow a plain vscode.TreeItem for the "empty state" placeholder.
+type TreeNode = SaveStateItem | GroupItem | vscode.TreeItem;
 
 export class SaveStateTreeProvider
   implements vscode.TreeDataProvider<TreeNode>
@@ -93,19 +94,20 @@ export class SaveStateTreeProvider
     // If fewer than 6 states, flat list
     if (items.length < 6 && !showArchived) {
       if (items.length === 0) {
-        return [
-          new SaveStateItem(
-            {
-              name: "No save states yet",
-              createdAt: "",
-              updatedAt: "",
-              branch: "",
-              notePreview: 'Use "Dev Savestate: Save" to create one',
-              archived: false,
-            },
-            false
-          ),
-        ];
+        // Inert placeholder: no `command` property (non-clickable) and a
+        // distinct contextValue so no context-menu actions match it.
+        // Switching to `viewsWelcome` in package.json is the idiomatic
+        // fix but is owned by another agent; this is the smallest local
+        // change that stops the broken `dvs.inspect` click-through.
+        const placeholder = new vscode.TreeItem(
+          "No save states yet - click 'Save' in the view title",
+          vscode.TreeItemCollapsibleState.None
+        );
+        placeholder.contextValue = "empty";
+        placeholder.iconPath = new vscode.ThemeIcon("info");
+        placeholder.tooltip =
+          'Run "Dev Savestate: Save" from the command palette to create your first save state.';
+        return [placeholder];
       }
       return items;
     }

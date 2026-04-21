@@ -50,8 +50,8 @@ export function disposeStatusBar(): void {
   statusBarItem = undefined;
 }
 
-function formatElapsed(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
+function formatElapsed(ts: string | number): string {
+  const diff = Date.now() - new Date(ts).getTime();
   const minutes = Math.floor(diff / 60000);
   if (minutes < 1) return "0m";
   if (minutes < 60) return `${minutes}m`;

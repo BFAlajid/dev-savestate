@@ -4,6 +4,13 @@ import path from "node:path";
 import os from "node:os";
 import { runCli } from "../services/cli";
 import { captureEditorState } from "../services/editor-capture";
+import { showActionableError } from "../ui/error-toast";
+import { COMMANDS } from "../constants";
+
+// Save on a large repo (big diffs, many processes) can legitimately take
+// over 30s. 2 minutes gives us enough headroom without letting a truly
+// stuck CLI hang forever.
+const SAVE_TIMEOUT_MS = 120_000;
 
 export async function executeSave(
   workspaceRoot: string,
@@ -53,17 +60,31 @@ export async function executeSave(
     if (note) args.push(note);
     args.push("--editor-state", tmpFile, "--json");
 
-    const result = await runCli(workspaceRoot, args);
+    const result = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Saving dev-savestate '${name}'...`,
+        cancellable: false,
+      },
+      () => runCli(workspaceRoot, args, SAVE_TIMEOUT_MS)
+    );
 
     if (result.success) {
       vscode.window.showInformationMessage(`Saved: ${name}`);
     } else {
-      vscode.window.showErrorMessage(
-        `Save failed: ${result.error || "Unknown error"}`
+      const reason = result.error || "Unknown error";
+      await showActionableError(
+        "Save failed",
+        new Error(reason),
+        quickSave ? COMMANDS.quickSave : COMMANDS.save
       );
     }
-  } catch (err: any) {
-    vscode.window.showErrorMessage(`Save failed: ${err.message}`);
+  } catch (err: unknown) {
+    await showActionableError(
+      "Save failed",
+      err,
+      quickSave ? COMMANDS.quickSave : COMMANDS.save
+    );
   } finally {
     // Clean up temp file
     await fs.unlink(tmpFile).catch(() => {});
