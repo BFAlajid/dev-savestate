@@ -24,7 +24,7 @@ const program = new Command();
 program
   .name("dvs")
   .description("Emulator save states for development environments")
-  .version("0.1.0");
+  .version("1.0.0");
 
 // Core
 program.addCommand(saveCommand);

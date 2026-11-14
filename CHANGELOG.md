@@ -4,6 +4,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.0.0] - UNRELEASED
+
+First stable release of the CLI (`dev-savestate`) and MCP server
+(`dev-savestate-mcp`). The VS Code extension stays in the repo as
+experimental and is not published.
+
+### Changed
+- Root `build`, `test` and `typecheck` scripts run across all workspaces.
+- Release workflow no longer publishes the VS Code extension.
+- README: removed the Marketplace listing claim; added maintenance posture.
+
 ### Added
 - Secret scanner (`packages/cli/src/lib/scanner.ts`) covering AWS /
   Slack / GitHub / Google / Anthropic / OpenAI / Stripe tokens, PEM

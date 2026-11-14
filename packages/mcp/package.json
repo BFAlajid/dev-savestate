@@ -1,6 +1,6 @@
 {
   "name": "dev-savestate-mcp",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Model Context Protocol server that wraps the dev-savestate (dvs) CLI — lets Claude Desktop, Claude Code, Cursor, and other MCP clients save and restore full developer context",
   "type": "module",
   "bin": {

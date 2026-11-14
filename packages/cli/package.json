@@ -1,6 +1,6 @@
 {
   "name": "dev-savestate",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Emulator save states for development environments — save and restore your full working context in seconds",
   "type": "module",
   "bin": {

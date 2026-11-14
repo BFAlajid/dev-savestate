@@ -47,7 +47,7 @@ function handleCliArgs(): boolean {
   if (argv.includes("--version") || argv.includes("-V")) {
     // Keep in sync with package.json. Hardcoded because tsup bundles ESM
     // without a runtime package.json read path.
-    process.stdout.write("0.1.0\n");
+    process.stdout.write("1.0.0\n");
     return true;
   }
   return false;
@@ -70,7 +70,7 @@ async function main(): Promise<void> {
   const server = new Server(
     {
       name: "dev-savestate",
-      version: "0.1.0",
+      version: "1.0.0",
     },
     {
       capabilities: {
