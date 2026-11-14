@@ -11,6 +11,11 @@ dvs load auth-feature
 # Back in context in seconds
 ```
 
+## Maintenance
+
+- CLI (`dev-savestate`) and MCP server (`dev-savestate-mcp`): supported.
+- VS Code extension: experimental, best-effort, not published.
+
 ## Installation
 
 ```bash
@@ -107,7 +112,7 @@ The companion VS Code extension adds:
 - **Context menu actions** on saved states (load, inspect, archive, delete)
 - **Status bar** indicator
 
-Install from the VS Code marketplace or search for "Dev Savestate" in extensions.
+The extension is experimental and not published to the VS Code Marketplace. Build it from `packages/vscode` in this repo.
 
 ## How It Works
 
