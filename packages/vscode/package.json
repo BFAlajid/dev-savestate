@@ -205,10 +205,10 @@
     "@types/cross-spawn": "^6.0.6",
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.0.0",
-    "@types/vscode": "^1.85.0",
+    "@types/vscode": "^1.146.0",
     "@vscode/test-electron": "^2.5.2",
     "cross-spawn": "^7.0.6",
-    "esbuild": "^0.20.0",
+    "esbuild": "^0.28.2",
     "glob": "^11.1.0",
     "mocha": "^10.8.2",
     "typescript": "^5.4.0"
